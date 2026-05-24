@@ -238,53 +238,39 @@ button { font-family: inherit; }
 }
 .puzzle-svg .part {
   pointer-events: none;
-  stroke: rgba(0, 0, 0, 0.35);
-  stroke-width: 0.035;
-  paint-order: stroke;
   shape-rendering: geometricPrecision;
   transition: r 0.08s ease, stroke-width 0.1s ease;
 }
-/* Socket — «ямка» на пустой подложке (показ когда нет детали). */
+/* Socket — «ямка» на пустой подложке. SVG-filter fSocket добавляет
+   inner shadow + лёгкий белый outer-glow снизу. */
 .puzzle-svg .socket {
-  pointer-events: none;
-  shape-rendering: geometricPrecision;
-}
-/* Sheen — общий вертикальный gradient из <defs>: светлая полоса
-   сверху + тёмная снизу. Даёт «цилиндрический» вид. */
-.puzzle-svg .sheen {
   pointer-events: none;
   shape-rendering: geometricPrecision;
 }
 
 /* === Видимость SVG-слоёв по состоянию клетки === */
-/* По умолчанию part и sheen скрыты (показываются только когда .has-part). */
-.puzzle-svg .part,
-.puzzle-svg .sheen { display: none; }
-.puzzle-svg .cell.has-part .part,
-.puzzle-svg .cell.has-part .sheen { display: inline; }
+/* По умолчанию part скрыт (показывается только когда .has-part). */
+.puzzle-svg .part { display: none; }
+.puzzle-svg .cell.has-part .part { display: inline; }
 /* Когда деталь стоит — socket скрыт (его место занимает деталь). */
 .puzzle-svg .cell.has-part .socket { display: none; }
 
 /* Вне арта: всё скрыто, фон прозрачный. */
 .puzzle-svg .cell.empty .bg { fill: transparent; pointer-events: none; }
 .puzzle-svg .cell.empty .socket,
-.puzzle-svg .cell.empty .part,
-.puzzle-svg .cell.empty .sheen { display: none; }
+.puzzle-svg .cell.empty .part { display: none; }
 
-/* Selection — белая обводка + чуть крупнее. */
-.puzzle-svg .cell.selected .part { stroke: #ffffff; stroke-width: 0.08; r: 0.36; }
-.puzzle-svg .cell.selected .sheen { r: 0.36; }
-
-/* Locked (деталь стоит на своём цвете): объём приглушён — sheen
-   спрятан, обводка тоньше. Деталь видна как «плоский» кружок цвета
-   подложки, без 3D-эффекта. */
-.puzzle-svg .cell.locked .sheen { display: none; }
-.puzzle-svg .cell.locked .part {
-  stroke: rgba(0, 0, 0, 0.18);
-  stroke-width: 0.02;
-  opacity: 0.85;
+/* Selection — белая обводка + чуть крупнее. Stroke рисуется поверх
+   filter-обработанного круга. */
+.puzzle-svg .cell.selected .part {
+  stroke: #ffffff;
+  stroke-width: 0.08;
+  paint-order: stroke;
+  r: 0.36;
 }
 
+/* Locked отличается через filter (fFlat без drop-shadow), CSS только
+   меняет cursor. */
 .puzzle-svg .cell.locked { cursor: default; }
 
 /* ===== Zoom control справа-внизу board-viewport ===== */

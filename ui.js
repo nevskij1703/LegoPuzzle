@@ -350,52 +350,75 @@ window.UI = (function () {
     svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
     svg.classList.add('puzzle-svg');
 
-    // <defs>: один вертикальный linearGradient для всех деталей.
-    // Сверху мягкая светлая полоса (блик), снизу мягкая тёмная полоса
-    // (тень). Даёт «цилиндрический» лего-вид (плоский верх с лёгким
-    // освещением сверху, тень внизу) — а не глянцевую полусферу.
+    // <defs>: три SVG-фильтра, общие для всех деталей. Точные параметры
+    // взяты из эталонных Figma-экспортов (Store_Info/_design/*.svg),
+    // пересчитаны в objectBoundingBox (= относительно 800px диаметра
+    // эталонного круга). Один фильтр применяется ко всем 900+ кругам —
+    // браузер кэширует и переиспользует.
+    //
+    //   fSocket  — для пустой подложки: лёгкая внутренняя тень внутрь
+    //              + еле заметный белый «outline-glow» снизу. Имитирует
+    //              углубление.
+    //   fShadowed — деталь не на своём цвете: outer drop-shadow (мягкая
+    //              большая + тонкая резкая) + inner highlight сверху
+    //              (белый) + inner shadow снизу (тёмный).
+    //   fFlat    — деталь на своём цвете (locked): только inner
+    //              highlights без drop-shadow, выглядит плоско.
     const defs = document.createElementNS(SVG_NS, 'defs');
-
-    const gCyl = document.createElementNS(SVG_NS, 'linearGradient');
-    gCyl.setAttribute('id', 'partSheen');
-    gCyl.setAttribute('x1', '0'); gCyl.setAttribute('y1', '0');
-    gCyl.setAttribute('x2', '0'); gCyl.setAttribute('y2', '1');
-    const sheenStops = [
-      { offset: '0%',   color: '#ffffff', op: 0.42 },
-      { offset: '32%',  color: '#ffffff', op: 0.00 },
-      { offset: '68%',  color: '#000000', op: 0.00 },
-      { offset: '100%', color: '#000000', op: 0.32 },
-    ];
-    sheenStops.forEach(s => {
-      const stop = document.createElementNS(SVG_NS, 'stop');
-      stop.setAttribute('offset', s.offset);
-      stop.setAttribute('stop-color', s.color);
-      stop.setAttribute('stop-opacity', s.op);
-      gCyl.appendChild(stop);
-    });
-    defs.appendChild(gCyl);
-
-    // «Ямка» — radialGradient с тёмным центром и прозрачным краем.
-    // Применяется к пустым клеткам (bg!==null && part===null) — даёт
-    // подсказку «сюда нужно поставить деталь».
-    const gSocket = document.createElementNS(SVG_NS, 'radialGradient');
-    gSocket.setAttribute('id', 'partSocket');
-    gSocket.setAttribute('cx', '0.5');
-    gSocket.setAttribute('cy', '0.5');
-    gSocket.setAttribute('r', '0.5');
-    const socketStops = [
-      { offset: '0%',   color: '#000000', op: 0.30 },
-      { offset: '70%',  color: '#000000', op: 0.08 },
-      { offset: '100%', color: '#000000', op: 0.00 },
-    ];
-    socketStops.forEach(s => {
-      const stop = document.createElementNS(SVG_NS, 'stop');
-      stop.setAttribute('offset', s.offset);
-      stop.setAttribute('stop-color', s.color);
-      stop.setAttribute('stop-opacity', s.op);
-      gSocket.appendChild(stop);
-    });
-    defs.appendChild(gSocket);
+    defs.innerHTML = [
+      '<filter id="fSocket" filterUnits="objectBoundingBox" primitiveUnits="objectBoundingBox" x="-30%" y="-30%" width="160%" height="160%">',
+      '  <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardA"/>',
+      '  <feOffset dy="0.01875"/>',
+      '  <feGaussianBlur stdDeviation="0.01056"/>',
+      '  <feComposite in2="hardA" operator="out"/>',
+      '  <feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.21 0"/>',
+      '  <feBlend in2="SourceGraphic" result="bg"/>',
+      '  <feBlend in="SourceGraphic" in2="bg" result="shape"/>',
+      '  <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardA2"/>',
+      '  <feMorphology in="SourceAlpha" operator="erode" radius="0.05125" result="morph"/>',
+      '  <feGaussianBlur stdDeviation="0.10281"/>',
+      '  <feComposite in2="hardA2" operator="arithmetic" k2="-1" k3="1"/>',
+      '  <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.11 0"/>',
+      '  <feBlend in2="shape"/>',
+      '</filter>',
+      '<filter id="fShadowed" filterUnits="objectBoundingBox" primitiveUnits="objectBoundingBox" x="-30%" y="-30%" width="160%" height="170%">',
+      '  <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardA"/>',
+      '  <feOffset dy="0.030"/>',
+      '  <feGaussianBlur stdDeviation="0.04769"/>',
+      '  <feComposite in2="hardA" operator="out"/>',
+      '  <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.44 0" result="ds1"/>',
+      '  <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardA2"/>',
+      '  <feOffset dy="0.02125"/>',
+      '  <feGaussianBlur stdDeviation="0.0025"/>',
+      '  <feComposite in2="hardA2" operator="out"/>',
+      '  <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.27 0"/>',
+      '  <feBlend in2="ds1" result="ds2"/>',
+      '  <feBlend in="SourceGraphic" in2="ds2" result="shape"/>',
+      '  <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardA3"/>',
+      '  <feOffset dy="0.0425"/>',
+      '  <feComposite in2="hardA3" operator="arithmetic" k2="-1" k3="1"/>',
+      '  <feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.31 0"/>',
+      '  <feBlend in2="shape" result="ihl"/>',
+      '  <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardA4"/>',
+      '  <feOffset dy="-0.05125"/>',
+      '  <feComposite in2="hardA4" operator="arithmetic" k2="-1" k3="1"/>',
+      '  <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.17 0"/>',
+      '  <feBlend in2="ihl"/>',
+      '</filter>',
+      '<filter id="fFlat" filterUnits="objectBoundingBox" primitiveUnits="objectBoundingBox" x="0%" y="0%" width="100%" height="100%">',
+      '  <feBlend in="SourceGraphic" in2="SourceGraphic" result="shape"/>',
+      '  <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardA"/>',
+      '  <feOffset dy="0.0425"/>',
+      '  <feComposite in2="hardA" operator="arithmetic" k2="-1" k3="1"/>',
+      '  <feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.31 0"/>',
+      '  <feBlend in2="shape" result="ihl"/>',
+      '  <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardA2"/>',
+      '  <feOffset dy="-0.05125"/>',
+      '  <feComposite in2="hardA2" operator="arithmetic" k2="-1" k3="1"/>',
+      '  <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.17 0"/>',
+      '  <feBlend in2="ihl"/>',
+      '</filter>'
+    ].join('\n');
 
     svg.appendChild(defs);
 
@@ -415,33 +438,29 @@ window.UI = (function () {
         rect.setAttribute('height', 1);
         g.appendChild(rect);
 
-        // Socket — «ямка» для пустых подложек (показывается только когда
-        // на этой клетке нет детали).
+        // Socket — «ямка» для пустых подложек. Filter добавляет лёгкий
+        // белый outer-glow снизу + еле заметную inner shadow внутрь.
+        // Fill — почти прозрачный чёрный (как в эталоне empty.svg).
         const socket = document.createElementNS(SVG_NS, 'circle');
         socket.setAttribute('class', 'socket');
         socket.setAttribute('cx', c + 0.5);
         socket.setAttribute('cy', r + 0.5);
         socket.setAttribute('r', PART_RADIUS);
-        socket.setAttribute('fill', 'url(#partSocket)');
+        socket.setAttribute('fill', '#000000');
+        socket.setAttribute('fill-opacity', '0.05');
+        socket.setAttribute('filter', 'url(#fSocket)');
         g.appendChild(socket);
 
-        // Основная деталь (цвет, обводка).
+        // Основная деталь. Filter переключается в renderGrid:
+        //   url(#fShadowed) для unlocked (тень + объёмные inner shadows)
+        //   url(#fFlat) для locked (плоско, только inner shadows)
         const circle = document.createElementNS(SVG_NS, 'circle');
         circle.setAttribute('class', 'part');
         circle.setAttribute('cx', c + 0.5);
         circle.setAttribute('cy', r + 0.5);
         circle.setAttribute('r', PART_RADIUS);
+        circle.setAttribute('filter', 'url(#fShadowed)');
         g.appendChild(circle);
-
-        // Sheen — вертикальный градиент для цилиндрического вида:
-        // светлая полоса сверху, тёмная снизу.
-        const sheen = document.createElementNS(SVG_NS, 'circle');
-        sheen.setAttribute('class', 'sheen');
-        sheen.setAttribute('cx', c + 0.5);
-        sheen.setAttribute('cy', r + 0.5);
-        sheen.setAttribute('r', PART_RADIUS);
-        sheen.setAttribute('fill', 'url(#partSheen)');
-        g.appendChild(sheen);
 
         frag.appendChild(g);
       }
@@ -494,19 +513,20 @@ window.UI = (function () {
           rect.setAttribute('fill', window.Game.colorHex(data.bg) || '#000');
         }
 
-        // part — фон-цвет (видимость управляется CSS через .has-part)
-        if (data.part !== null) {
+        // part — фон-цвет + filter (видимость управляется CSS через .has-part)
+        const hasPart = data.part !== null;
+        const locked = window.Game.isLocked(data);
+        if (hasPart) {
           circle.setAttribute('fill', window.Game.colorHex(data.part) || '#000');
+          // Переключаем filter: плоский для locked, объёмный с тенью для остальных.
+          circle.setAttribute('filter', locked ? 'url(#fFlat)' : 'url(#fShadowed)');
         }
 
         // Классы определяют какие SVG-узлы видны (см. styles.css):
-        //   .empty        → bg=null (вне арта; всё скрыто)
-        //   .has-part     → есть деталь (socket скрыт, part+sheen видны)
-        //   .locked       → деталь стоит на своём цвете (sheen скрыт,
-        //                   stroke ослаблен, выглядит «плоско»)
-        //   .selected     → подсветка
-        const hasPart = data.part !== null;
-        const locked = window.Game.isLocked(data);
+        //   .empty     → bg=null (вне арта; всё скрыто)
+        //   .has-part  → есть деталь (socket скрыт, part виден)
+        //   .locked    → деталь стоит на своём цвете (filter без тени)
+        //   .selected  → белая обводка
         const selected = selSet.has(r + ',' + c);
         g.classList.toggle('has-part', hasPart);
         g.classList.toggle('locked', locked);
