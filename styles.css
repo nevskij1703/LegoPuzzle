@@ -244,6 +244,11 @@ button { font-family: inherit; }
   shape-rendering: geometricPrecision;
   transition: r 0.08s ease, stroke-width 0.1s ease;
 }
+/* Socket — «ямка» на пустой подложке (показ когда нет детали). */
+.puzzle-svg .socket {
+  pointer-events: none;
+  shape-rendering: geometricPrecision;
+}
 /* Sheen — общий вертикальный gradient из <defs>: светлая полоса
    сверху + тёмная снизу. Даёт «цилиндрический» вид. */
 .puzzle-svg .sheen {
@@ -251,7 +256,18 @@ button { font-family: inherit; }
   shape-rendering: geometricPrecision;
 }
 
+/* === Видимость SVG-слоёв по состоянию клетки === */
+/* По умолчанию part и sheen скрыты (показываются только когда .has-part). */
+.puzzle-svg .part,
+.puzzle-svg .sheen { display: none; }
+.puzzle-svg .cell.has-part .part,
+.puzzle-svg .cell.has-part .sheen { display: inline; }
+/* Когда деталь стоит — socket скрыт (его место занимает деталь). */
+.puzzle-svg .cell.has-part .socket { display: none; }
+
+/* Вне арта: всё скрыто, фон прозрачный. */
 .puzzle-svg .cell.empty .bg { fill: transparent; pointer-events: none; }
+.puzzle-svg .cell.empty .socket,
 .puzzle-svg .cell.empty .part,
 .puzzle-svg .cell.empty .sheen { display: none; }
 
@@ -259,10 +275,17 @@ button { font-family: inherit; }
 .puzzle-svg .cell.selected .part { stroke: #ffffff; stroke-width: 0.08; r: 0.36; }
 .puzzle-svg .cell.selected .sheen { r: 0.36; }
 
-/* Locked — немного приглушена; объём (тень + блик) остаётся
-   виден на любом фоне, поэтому деталь читается даже на своём цвете. */
+/* Locked (деталь стоит на своём цвете): объём приглушён — sheen
+   спрятан, обводка тоньше. Деталь видна как «плоский» кружок цвета
+   подложки, без 3D-эффекта. */
+.puzzle-svg .cell.locked .sheen { display: none; }
+.puzzle-svg .cell.locked .part {
+  stroke: rgba(0, 0, 0, 0.18);
+  stroke-width: 0.02;
+  opacity: 0.85;
+}
+
 .puzzle-svg .cell.locked { cursor: default; }
-.puzzle-svg .cell.locked .part { opacity: 0.92; }
 
 /* ===== Zoom control справа-внизу board-viewport ===== */
 .zoom-control {

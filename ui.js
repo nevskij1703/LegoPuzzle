@@ -340,13 +340,13 @@ window.UI = (function () {
     gCyl.setAttribute('id', 'partSheen');
     gCyl.setAttribute('x1', '0'); gCyl.setAttribute('y1', '0');
     gCyl.setAttribute('x2', '0'); gCyl.setAttribute('y2', '1');
-    const stops = [
+    const sheenStops = [
       { offset: '0%',   color: '#ffffff', op: 0.42 },
       { offset: '32%',  color: '#ffffff', op: 0.00 },
       { offset: '68%',  color: '#000000', op: 0.00 },
       { offset: '100%', color: '#000000', op: 0.32 },
     ];
-    stops.forEach(s => {
+    sheenStops.forEach(s => {
       const stop = document.createElementNS(SVG_NS, 'stop');
       stop.setAttribute('offset', s.offset);
       stop.setAttribute('stop-color', s.color);
@@ -354,6 +354,28 @@ window.UI = (function () {
       gCyl.appendChild(stop);
     });
     defs.appendChild(gCyl);
+
+    // «Ямка» — radialGradient с тёмным центром и прозрачным краем.
+    // Применяется к пустым клеткам (bg!==null && part===null) — даёт
+    // подсказку «сюда нужно поставить деталь».
+    const gSocket = document.createElementNS(SVG_NS, 'radialGradient');
+    gSocket.setAttribute('id', 'partSocket');
+    gSocket.setAttribute('cx', '0.5');
+    gSocket.setAttribute('cy', '0.5');
+    gSocket.setAttribute('r', '0.5');
+    const socketStops = [
+      { offset: '0%',   color: '#000000', op: 0.30 },
+      { offset: '70%',  color: '#000000', op: 0.08 },
+      { offset: '100%', color: '#000000', op: 0.00 },
+    ];
+    socketStops.forEach(s => {
+      const stop = document.createElementNS(SVG_NS, 'stop');
+      stop.setAttribute('offset', s.offset);
+      stop.setAttribute('stop-color', s.color);
+      stop.setAttribute('stop-opacity', s.op);
+      gSocket.appendChild(stop);
+    });
+    defs.appendChild(gSocket);
 
     svg.appendChild(defs);
 
@@ -372,6 +394,16 @@ window.UI = (function () {
         rect.setAttribute('width', 1);
         rect.setAttribute('height', 1);
         g.appendChild(rect);
+
+        // Socket — «ямка» для пустых подложек (показывается только когда
+        // на этой клетке нет детали).
+        const socket = document.createElementNS(SVG_NS, 'circle');
+        socket.setAttribute('class', 'socket');
+        socket.setAttribute('cx', c + 0.5);
+        socket.setAttribute('cy', r + 0.5);
+        socket.setAttribute('r', PART_RADIUS);
+        socket.setAttribute('fill', 'url(#partSocket)');
+        g.appendChild(socket);
 
         // Основная деталь (цвет, обводка).
         const circle = document.createElementNS(SVG_NS, 'circle');
@@ -431,8 +463,7 @@ window.UI = (function () {
         if (!g) continue;
         const data = state.grid[r][c];
         const rect   = g.children[0]; // bg
-        const circle = g.children[1]; // основной part
-        const sheen  = g.children[2]; // overlay sheen (linearGradient)
+        const circle = g.children[2]; // основной part (children[1] — socket)
 
         // bg
         if (data.bg === null) {
@@ -443,19 +474,21 @@ window.UI = (function () {
           rect.setAttribute('fill', window.Game.colorHex(data.bg) || '#000');
         }
 
-        // part / sheen — показаны вместе или скрыты вместе
-        if (data.part === null) {
-          circle.style.display = 'none';
-          sheen.style.display = 'none';
-        } else {
-          circle.style.display = '';
-          sheen.style.display = '';
+        // part — фон-цвет (видимость управляется CSS через .has-part)
+        if (data.part !== null) {
           circle.setAttribute('fill', window.Game.colorHex(data.part) || '#000');
         }
 
-        // locked / selected — через classes (стили из styles.css)
+        // Классы определяют какие SVG-узлы видны (см. styles.css):
+        //   .empty        → bg=null (вне арта; всё скрыто)
+        //   .has-part     → есть деталь (socket скрыт, part+sheen видны)
+        //   .locked       → деталь стоит на своём цвете (sheen скрыт,
+        //                   stroke ослаблен, выглядит «плоско»)
+        //   .selected     → подсветка
+        const hasPart = data.part !== null;
         const locked = window.Game.isLocked(data);
         const selected = selSet.has(r + ',' + c);
+        g.classList.toggle('has-part', hasPart);
         g.classList.toggle('locked', locked);
         g.classList.toggle('selected', selected);
       }
