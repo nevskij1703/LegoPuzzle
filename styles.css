@@ -196,17 +196,85 @@ button { font-family: inherit; }
   text-align: center;
 }
 
+/* Viewport — фиксированная коробка с overflow:hidden. Внутри grid с transform. */
+.board-viewport {
+  position: relative;
+  width: 100%;
+  max-width: min(92vw, 480px);
+  aspect-ratio: 1;
+  background: var(--bg-1);
+  border-radius: 10px;
+  overflow: hidden;
+  touch-action: none;           /* отдаём pinch/scroll/pan нам */
+  cursor: grab;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.board-viewport.dragging { cursor: grabbing; }
+
 .puzzle-grid {
   display: grid;
   grid-template-columns: repeat(var(--cols, 8), 1fr);
   grid-template-rows: repeat(var(--rows, 8), 1fr);
   gap: var(--grid-gap);
+  position: absolute;
+  top: 0; left: 0;
   width: 100%;
-  max-width: min(92vw, 480px);
-  aspect-ratio: 1;
-  background: var(--bg-1);
+  height: 100%;
   padding: var(--grid-gap);
-  border-radius: 10px;
+  /* transform-origin: 0 0 — для простой математики zoom-to-point.
+     transform задаётся inline из ui.js (translate + scale). */
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+/* ===== Zoom control справа-внизу board-viewport ===== */
+.zoom-control {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 6px;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 14px;
+  z-index: 5;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.zoom-btn {
+  width: 28px; height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+}
+.zoom-btn:hover { background: rgba(255, 255, 255, 0.2); }
+.zoom-btn:active { transform: scale(0.95); }
+.zoom-control input[type="range"] {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  -webkit-appearance: slider-vertical;
+  appearance: slider-vertical;
+  width: 22px;
+  height: 110px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.zoom-value {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  min-width: 30px;
+  text-align: center;
 }
 
 .cell {
