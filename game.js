@@ -52,13 +52,6 @@ window.Game = (function () {
     return cell.part !== null && cell.part === cell.bg;
   }
 
-  function shuffle(arr) {
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
-    }
-  }
-
   function snapshotParts(grid) {
     return grid.map(row => row.map(cell => cell.part));
   }
@@ -124,47 +117,123 @@ window.Game = (function () {
 
   // ===== Генерация начальной раскладки =====
 
+  // Случайно перемешать массив (Fisher-Yates) — используется при BFS,
+  // чтобы рост sub-кластера принимал разную форму на каждом запуске.
+  function shuffledNeigh8() {
+    const a = NEIGH8.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  // BFS-«обход» региона из (r0,c0): возвращает все 8-связные клетки того
+  // же bg-цвета. Соседи перетасованы — получаемый порядок clusters slice
+  // первых N клеток будет случайным компактным sub-кластером.
+  function bfsRegion(grid, r0, c0, visited) {
+    const rows = grid.length, cols = grid[0].length;
+    const color = grid[r0][c0].bg;
+    const cells = [];
+    const queue = [{ r: r0, c: c0 }];
+    visited[r0][c0] = true;
+    while (queue.length) {
+      const node = queue.shift();
+      cells.push(node);
+      const dirs = shuffledNeigh8();
+      for (let i = 0; i < dirs.length; i++) {
+        const nr = node.r + dirs[i][0];
+        const nc = node.c + dirs[i][1];
+        if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+        if (visited[nr][nc]) continue;
+        if (grid[nr][nc].bg !== color) continue;
+        visited[nr][nc] = true;
+        queue.push({ r: nr, c: nc });
+      }
+    }
+    return cells;
+  }
+
+  /**
+   * Cluster-swap раскладка деталей.
+   *
+   * Идея: подложки разбиваются на 8-связные регионы одного цвета. Каждый
+   * регион заполняется компактной пачкой деталей ОДНОГО цвета, отличного
+   * от цвета этого региона. Цвет берётся из пула (мульти-набор всех bg)
+   * жадно — тот, у которого больше всего деталей осталось.
+   *
+   * Результат: на каждом «куске» картинки лежит большая пачка деталей
+   * другого цвета, которую игрок снимет одним кликом и освободит большой
+   * кластер подложек того же цвета.
+   *
+   * Fallback на свой цвет (= деталь сразу locked) случается только когда
+   * детали других цветов исчерпаны — типично для дисбалансированных
+   * палитр (один цвет доминирует).
+   */
   function buildInitialGrid(level, transparentCodes) {
+    const rows = level.rows, cols = level.cols;
     const grid = [];
-    const colors = [];
-    for (let r = 0; r < level.rows; r++) {
+    for (let r = 0; r < rows; r++) {
       const row = [];
-      for (let c = 0; c < level.cols; c++) {
+      for (let c = 0; c < cols; c++) {
         let bg = (level.bg[r] && level.bg[r][c]) || null;
-        // Прозрачные коды (hex=transparent) трактуем как «вне арта».
         if (bg !== null && transparentCodes && transparentCodes.has(bg)) bg = null;
         row.push({ bg: bg, part: null });
-        if (bg !== null) colors.push(bg);
       }
       grid.push(row);
     }
 
-    // Перемешиваем мульти-набор и проверяем что не победный.
-    let attempts = 0;
-    let isWinning;
-    do {
-      shuffle(colors);
-      isWinning = true;
-      let idx = 0;
-      for (let r = 0; r < level.rows && isWinning; r++) {
-        for (let c = 0; c < level.cols && isWinning; c++) {
-          if (grid[r][c].bg !== null) {
-            if (colors[idx] !== grid[r][c].bg) isWinning = false;
-            idx++;
-          }
-        }
-      }
-      attempts++;
-    } while (isWinning && attempts < 50);
-
-    let idx = 0;
-    for (let r = 0; r < level.rows; r++) {
-      for (let c = 0; c < level.cols; c++) {
-        if (grid[r][c].bg !== null) {
-          grid[r][c].part = colors[idx++];
-        }
+    // 1. Найти все 8-связные регионы подложек.
+    const visited = [];
+    for (let r = 0; r < rows; r++) visited.push(new Array(cols).fill(false));
+    const regions = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (visited[r][c] || grid[r][c].bg === null) continue;
+        const cells = bfsRegion(grid, r, c, visited);
+        regions.push({ color: grid[r][c].bg, cells: cells });
       }
     }
+
+    // 2. Pool деталей = по конструкции мульти-набор цветов всех непустых
+    //    клеток (то же что сумма размеров регионов).
+    const pool = {};
+    regions.forEach(reg => {
+      pool[reg.color] = (pool[reg.color] || 0) + reg.cells.length;
+    });
+
+    // 3. Сортируем регионы по убыванию размера (с jitter при равенстве —
+    //    чтобы при многих регионах одного размера порядок не был фиксирован).
+    regions.sort((a, b) => (b.cells.length - a.cells.length) || (Math.random() - 0.5));
+
+    // 4. Жадно заполняем каждый регион пачками других цветов.
+    for (const region of regions) {
+      const remaining = region.cells.slice();
+      while (remaining.length > 0) {
+        // Самый «изобильный» цвет, отличный от region.color.
+        let bestColor = null, bestCount = 0;
+        for (const c in pool) {
+          if (c === region.color) continue;
+          if (pool[c] > bestCount) { bestCount = pool[c]; bestColor = c; }
+        }
+        // Если non-self цвета исчерпаны — fallback на свой (эти клетки
+        // окажутся locked сразу; происходит на дисбалансных уровнях).
+        if (bestColor === null) bestColor = region.color;
+
+        const take = Math.min(remaining.length, pool[bestColor]);
+        if (take === 0) {
+          // Защита от бесконечного цикла (инвариант: sum(pool)==sum(remaining
+          // across all regions), не должно случаться).
+          break;
+        }
+        for (let i = 0; i < take; i++) {
+          const cell = remaining.shift();
+          grid[cell.r][cell.c].part = bestColor;
+        }
+        pool[bestColor] -= take;
+      }
+    }
+
     return grid;
   }
 
