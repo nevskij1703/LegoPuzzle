@@ -140,6 +140,30 @@ window.UI = (function () {
     return { x: ev.clientX - rect.left, y: ev.clientY - rect.top };
   }
 
+  // Точное преобразование screen-координат (clientX/Y) в координаты клетки
+  // на SVG-сетке. Использует матрицу преобразования SVG (учитывает viewBox,
+  // zoom, preserveAspectRatio, любую вложенную transform). Возвращает
+  // {r, c} или null, если точка за пределами арта.
+  function getCellAtClient(clientX, clientY) {
+    const state = window.Game.state;
+    if (!el.svg || !state.cols || !state.rows) return null;
+    const ctm = el.svg.getScreenCTM();
+    if (!ctm) return null;
+    const pt = el.svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    const svgPt = pt.matrixTransform(ctm.inverse());
+    if (svgPt.x < 0 || svgPt.x >= state.cols) return null;
+    if (svgPt.y < 0 || svgPt.y >= state.rows) return null;
+    const c = Math.floor(svgPt.x);
+    const r = Math.floor(svgPt.y);
+    // Дополнительная проверка: клетка не должна быть пустой (вне арта).
+    if (state.grid[r] && state.grid[r][c] && state.grid[r][c].bg === null) {
+      return null;
+    }
+    return { r: r, c: c };
+  }
+
   function onPointerDown(ev) {
     // Только основная кнопка мыши.
     if (ev.pointerType === 'mouse' && ev.button !== 0) return;
@@ -211,16 +235,12 @@ window.UI = (function () {
     if (pointers.size === 0) {
       el.viewport.classList.remove('dragging');
       if (!dragMoved) {
-        // Берём позицию pointerdown — куда пользователь нажал, а не куда
-        // уехал палец перед отпусканием. На pointerup при микро-смещении
-        // ev.clientX/Y может «съехать» в соседнюю клетку.
-        const elAt = document.elementFromPoint(lastDownClientX, lastDownClientY);
-        const cell = elAt && elAt.closest && elAt.closest('[data-r]');
-        if (cell && el.puzzleGrid.contains(cell)) {
-          const r = parseInt(cell.getAttribute('data-r'), 10);
-          const c = parseInt(cell.getAttribute('data-c'), 10);
-          if (window.Game.pickAtCell(r, c)) render();
-        }
+        // Точное попадание: преобразуем screen-координаты pointerdown
+        // в SVG-координаты через getScreenCTM. Это не зависит от DOM-
+        // структуры (z-order, pointer-events, paint-order, edge effects)
+        // и работает корректно при любом zoom.
+        const cell = getCellAtClient(lastDownClientX, lastDownClientY);
+        if (cell && window.Game.pickAtCell(cell.r, cell.c)) render();
       }
       dragMoved = false;
     } else if (pointers.size === 1) {
