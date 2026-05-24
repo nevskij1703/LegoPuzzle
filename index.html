@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#1c1c1c" />
+  <title>Лего-паззл</title>
+  <link rel="stylesheet" href="styles.css?v=1" />
+</head>
+<body>
+  <!-- === ЭКРАН ГЛАВНОЙ === -->
+  <section id="screen-home" class="screen">
+    <div class="home-content">
+      <h1 class="title">Лего-паззл</h1>
+      <p class="subtitle">Расставь детали по своим цветам</p>
+      <button id="btn-play" class="btn btn-primary">Играть</button>
+    </div>
+  </section>
+
+  <!-- === ЭКРАН ИГРЫ === -->
+  <section id="screen-game" class="screen">
+    <header class="game-header">
+      <button id="btn-back" class="icon-btn" aria-label="Назад">←</button>
+      <span id="level-title" class="level-title">Уровень</span>
+      <button id="btn-reset" class="icon-btn" aria-label="Сбросить уровень">↺</button>
+    </header>
+
+    <div class="board-wrap">
+      <div id="selection-info" class="selection-info" aria-live="polite"></div>
+      <div id="puzzle-grid" class="puzzle-grid"></div>
+    </div>
+
+    <div class="inventory-wrap">
+      <div class="inventory-label">Инвентарь</div>
+      <div id="inventory" class="inventory"></div>
+    </div>
+  </section>
+
+  <!-- === ОВЕРЛЕЙ ПОБЕДЫ === -->
+  <div id="win-overlay" class="overlay">
+    <div class="overlay-card">
+      <h2>🎉 Уровень пройден!</h2>
+      <p>Все детали стоят на своих местах.</p>
+      <button id="btn-win-next" class="btn btn-primary">Дальше</button>
+    </div>
+  </div>
+
+  <!-- === СКРИПТЫ === -->
+  <script src="config.js?v=1"></script>
+  <script src="migrations.js?v=1"></script>
+  <script src="storage.js?v=1"></script>
+  <script src="levels.js?v=1"></script>
+  <script src="audio.js?v=1"></script>
+  <script src="game.js?v=1"></script>
+  <script src="ui.js?v=1"></script>
+  <script src="main.js?v=1"></script>
+</body>
+</html>

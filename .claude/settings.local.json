@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Александр\\\\Desktop\\\\Claude\\\\04_True-or-Do\" -Force)",
+      "Bash(Select-Object Name, FullName)",
+      "Bash(ls -la \"C:\\\\Users\\\\Александр\\\\Desktop\\\\Claude\\\\03_FlappyBird\" | head -20)",
+      "Bash(ls -la \"C:\\\\Users\\\\Александр\\\\Desktop\\\\Claude\\\\02_Words\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\Александр\\\\Desktop\\\\Claude\\\\05_LegoPuzzle\\\\.claude\" \"C:\\\\Users\\\\Александр\\\\Desktop\\\\Claude\\\\05_LegoPuzzle\\\\Store_Info\\\\keystore\" \"C:\\\\Users\\\\Александр\\\\Desktop\\\\Claude\\\\05_LegoPuzzle\\\\Store_Info\\\\screenshots\" \"C:\\\\Users\\\\Александр\\\\Desktop\\\\Claude\\\\05_LegoPuzzle\\\\docs\" && echo \"dirs ok\")",
+      "Bash(cp \"C:\\\\Users\\\\Александр\\\\Desktop\\\\Claude\\\\04_True-or-Do\\\\.claude\\\\launch.json\" \"C:\\\\Users\\\\Александр\\\\Desktop\\\\Claude\\\\05_LegoPuzzle\\\\.claude\\\\\" && cp \"C:\\\\Users\\\\Александр\\\\Desktop\\\\Claude\\\\04_True-or-Do\\\\.claude\\\\settings.local.json\" \"C:\\\\Users\\\\Александр\\\\Desktop\\\\Claude\\\\05_LegoPuzzle\\\\.claude\\\\\")",
+      "Bash(cp -r \"C:\\\\Users\\\\Александр\\\\Desktop\\\\Claude\\\\04_True-or-Do\\\\Store_Info\\\\keystore\\\\.\" \"C:\\\\Users\\\\Александр\\\\Desktop\\\\Claude\\\\05_LegoPuzzle\\\\Store_Info\\\\keystore\\\\\" && cp \"C:\\\\Users\\\\Александр\\\\Desktop\\\\Claude\\\\04_True-or-Do\\\\Store_Info\\\\icon.png\" \"C:\\\\Users\\\\Александр\\\\Desktop\\\\Claude\\\\05_LegoPuzzle\\\\Store_Info\\\\\")",
+      "Bash(cp \"C:\\\\Users\\\\Александр\\\\Desktop\\\\Claude\\\\04_True-or-Do\\\\Store_Info\\\\store-feature.png\" \"C:\\\\Users\\\\Александр\\\\Desktop\\\\Claude\\\\05_LegoPuzzle\\\\Store_Info\\\\\" && cp \"C:\\\\Users\\\\Александр\\\\Desktop\\\\Claude\\\\04_True-or-Do\\\\Store_Info\\\\store-icon.jpg\" \"C:\\\\Users\\\\Александр\\\\Desktop\\\\Claude\\\\05_LegoPuzzle\\\\Store_Info\\\\\")",
+      "Bash(cp -r \"C:\\\\Users\\\\Александр\\\\Desktop\\\\Claude\\\\04_True-or-Do\\\\Store_Info\\\\screenshots\\\\.\" \"C:\\\\Users\\\\Александр\\\\Desktop\\\\Claude\\\\05_LegoPuzzle\\\\Store_Info\\\\screenshots\\\\\" && echo \"copy ok\")",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(git config *)",
+      "Bash(git init *)",
+      "Bash(git remote *)",
+      "Bash(git add *)"
+    ]
+  }
+}

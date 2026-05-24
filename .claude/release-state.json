@@ -1,0 +1,7 @@
+{
+  "_comment": "Состояние последнего опубликованного в РуСтор релиза. Обновляется ВРУЧНУЮ (или skill'ом prepare-release-candidate) после реальной публикации. Используется для проверки совместимости миграций сейва между релизами.",
+  "lastPublishedSchemaVersion": null,
+  "lastPublishedVersionCode": null,
+  "lastPublishedVersionName": null,
+  "lastPublishedAt": null
+}

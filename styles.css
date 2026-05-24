@@ -1,0 +1,333 @@
+/**
+ * styles.css — оформление игры «Лего-паззл».
+ * Mobile-first. CSS Grid для пиксельной сетки. CSS-переменные для палитры.
+ */
+
+:root {
+  /* Палитра деталей (зеркало GAME_CONFIG.COLORS) */
+  --c-Y: #f5d142;
+  --c-R: #d63b3b;
+  --c-B: #1c1c1c;
+  --c-W: #f0f0f0;
+  --c-G: #5cb85c;
+  --c-L: #4a90e2;
+  --c-O: #e8862c;
+
+  /* Тема */
+  --bg-0: #1a1d24;
+  --bg-1: #252a33;
+  --bg-2: #313641;
+  --text: #e7eaf0;
+  --text-dim: #9097a3;
+  --accent: #ffffff;
+  --accent-glow: rgba(255, 255, 255, 0.55);
+  --stroke: rgba(255, 255, 255, 0.08);
+  --grid-gap: 2px;
+  --grid-radius: 4px;
+  --part-inset: 14%;
+
+  /* Размер слота инвентаря */
+  --slot-size: 42px;
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg-0);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+button { font-family: inherit; }
+
+/* ===== Экраны ===== */
+.screen {
+  display: none;
+  position: fixed;
+  inset: 0;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+.screen.active { display: flex; }
+
+/* ===== Главная ===== */
+#screen-home {
+  align-items: center;
+  justify-content: center;
+}
+.home-content {
+  text-align: center;
+  padding: 32px 24px;
+  max-width: 480px;
+}
+.title {
+  font-size: 40px;
+  font-weight: 800;
+  margin: 0 0 8px;
+  letter-spacing: 0.02em;
+}
+.subtitle {
+  font-size: 16px;
+  color: var(--text-dim);
+  margin: 0 0 40px;
+}
+.btn {
+  display: inline-block;
+  border: none;
+  border-radius: 14px;
+  padding: 14px 32px;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.1s ease, background 0.15s ease;
+}
+.btn:active { transform: scale(0.97); }
+.btn-primary {
+  background: var(--accent);
+  color: var(--bg-0);
+}
+.btn-primary:hover { opacity: 0.92; }
+
+/* ===== Игровой экран ===== */
+#screen-game {
+  display: none;
+}
+#screen-game.active {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100vh;
+  height: 100dvh;
+}
+
+.game-header {
+  display: grid;
+  grid-template-columns: 48px 1fr 48px;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--stroke);
+}
+.icon-btn {
+  width: 40px; height: 40px;
+  border: none; background: transparent;
+  color: var(--text);
+  font-size: 22px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.icon-btn:hover { background: var(--bg-2); }
+.level-title {
+  text-align: center;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+/* ===== Поле ===== */
+.board-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  min-height: 0;
+}
+.selection-info {
+  height: 22px;
+  font-size: 14px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.puzzle-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 8), 1fr);
+  grid-template-rows: repeat(var(--rows, 8), 1fr);
+  gap: var(--grid-gap);
+  width: 100%;
+  max-width: min(92vw, 480px);
+  aspect-ratio: 1;
+  background: var(--bg-1);
+  padding: var(--grid-gap);
+  border-radius: 10px;
+}
+
+.cell {
+  position: relative;
+  background: var(--bg-2);
+  border-radius: var(--grid-radius);
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.cell.empty {
+  background: transparent;
+  pointer-events: none;
+}
+
+.cell[data-bg="Y"] { background: var(--c-Y); }
+.cell[data-bg="R"] { background: var(--c-R); }
+.cell[data-bg="B"] { background: var(--c-B); }
+.cell[data-bg="W"] { background: var(--c-W); }
+.cell[data-bg="G"] { background: var(--c-G); }
+.cell[data-bg="L"] { background: var(--c-L); }
+.cell[data-bg="O"] { background: var(--c-O); }
+
+.cell .part {
+  position: absolute;
+  inset: var(--part-inset);
+  border-radius: 50%;
+  pointer-events: none;
+  box-shadow:
+    inset 0 -2px 4px rgba(0,0,0,0.25),
+    inset 0 2px 4px rgba(255,255,255,0.22),
+    0 1px 2px rgba(0,0,0,0.3);
+  transition: transform 0.08s ease, box-shadow 0.15s ease;
+}
+.cell[data-part=""] .part { display: none; }
+.cell[data-part="Y"] .part { background: var(--c-Y); }
+.cell[data-part="R"] .part { background: var(--c-R); }
+.cell[data-part="B"] .part { background: var(--c-B); }
+.cell[data-part="W"] .part { background: var(--c-W); }
+.cell[data-part="G"] .part { background: var(--c-G); }
+.cell[data-part="L"] .part { background: var(--c-L); }
+.cell[data-part="O"] .part { background: var(--c-O); }
+
+/* Подсветка selection */
+.cell[data-selected="true"] {
+  z-index: 2;
+}
+.cell[data-selected="true"] .part {
+  transform: scale(1.12);
+  box-shadow:
+    inset 0 -2px 4px rgba(0,0,0,0.25),
+    inset 0 2px 4px rgba(255,255,255,0.4),
+    0 0 0 2px var(--accent),
+    0 0 14px var(--accent-glow);
+}
+
+/* ===== Инвентарь ===== */
+.inventory-wrap {
+  padding: 12px 16px calc(20px + env(safe-area-inset-bottom));
+  background: var(--bg-1);
+  border-top: 1px solid var(--stroke);
+}
+.inventory-label {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+  text-align: center;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.inventory {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 4px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+.slot {
+  position: relative;
+  aspect-ratio: 1;
+  background: var(--bg-2);
+  border-radius: 8px;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.slot .part {
+  position: absolute;
+  inset: 12%;
+  border-radius: 50%;
+  pointer-events: none;
+  box-shadow:
+    inset 0 -2px 4px rgba(0,0,0,0.25),
+    inset 0 2px 4px rgba(255,255,255,0.22),
+    0 1px 2px rgba(0,0,0,0.3);
+  transition: transform 0.08s ease, box-shadow 0.15s ease;
+}
+.slot[data-part=""] .part { display: none; }
+.slot[data-part="Y"] .part { background: var(--c-Y); }
+.slot[data-part="R"] .part { background: var(--c-R); }
+.slot[data-part="B"] .part { background: var(--c-B); }
+.slot[data-part="W"] .part { background: var(--c-W); }
+.slot[data-part="G"] .part { background: var(--c-G); }
+.slot[data-part="L"] .part { background: var(--c-L); }
+.slot[data-part="O"] .part { background: var(--c-O); }
+
+.slot[data-selected="true"] .part {
+  transform: scale(1.15);
+  box-shadow:
+    inset 0 -2px 4px rgba(0,0,0,0.25),
+    inset 0 2px 4px rgba(255,255,255,0.4),
+    0 0 0 2px var(--accent),
+    0 0 12px var(--accent-glow);
+}
+
+/* ===== Оверлей победы ===== */
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 100;
+}
+.overlay.active { display: flex; }
+.overlay-card {
+  background: var(--bg-1);
+  border: 1px solid var(--stroke);
+  border-radius: 18px;
+  padding: 28px 24px;
+  max-width: 320px;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+}
+.overlay-card h2 {
+  margin: 0 0 8px;
+  font-size: 22px;
+}
+.overlay-card p {
+  margin: 0 0 20px;
+  color: var(--text-dim);
+}
+
+/* ===== Dev-панель (видна только при ?dev=1) ===== */
+/* HTML2APK:DEV_ONLY */
+#dev-panel {
+  position: fixed;
+  top: 8px; right: 8px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: rgba(0,0,0,0.7);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 10px;
+  font-size: 12px;
+}
+#dev-panel button {
+  background: #444;
+  color: #fff;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+#dev-panel button:hover { background: #555; }
+/* /HTML2APK:DEV_ONLY */
