@@ -94,6 +94,8 @@ window.UI = (function () {
         } else {
           cell.dataset.part = data.part;
         }
+        // locked: деталь стоит на своём цвете — не интерактивна
+        cell.dataset.locked = window.Game.isLocked(data) ? 'true' : 'false';
         // selection
         cell.dataset.selected = selSet.has(r + ',' + c) ? 'true' : 'false';
       }

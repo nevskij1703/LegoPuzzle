@@ -34,6 +34,12 @@ window.Game = (function () {
 
   // ===== Утилиты =====
 
+  // Деталь "залочена" если стоит на своём цвете — её нельзя поднимать
+  // и она не входит в flood-fill группу (выступает как стена).
+  function isLocked(cell) {
+    return cell.part !== null && cell.part === cell.bg;
+  }
+
   function shuffle(arr) {
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -57,7 +63,7 @@ window.Game = (function () {
 
   function floodFillParts(grid, r0, c0, color) {
     const rows = grid.length, cols = grid[0].length;
-    if (grid[r0][c0].part !== color) return [];
+    if (grid[r0][c0].part !== color || isLocked(grid[r0][c0])) return [];
     const visited = [];
     for (let r = 0; r < rows; r++) visited.push(new Array(cols).fill(false));
     const queue = [{ r: r0, c: c0 }];
@@ -72,6 +78,7 @@ window.Game = (function () {
         if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
         if (visited[nr][nc]) continue;
         if (grid[nr][nc].part !== color) continue;
+        if (isLocked(grid[nr][nc])) continue;
         visited[nr][nc] = true;
         queue.push({ r: nr, c: nc });
       }
@@ -312,12 +319,13 @@ window.Game = (function () {
 
     // Ничего не выбрано — выбираем группу.
     if (!sel) {
-      if (cell.part !== null) {
+      if (cell.part !== null && !isLocked(cell)) {
         if (selectGridGroup(r, c)) {
           window.AudioFX.select();
           return true;
         }
       }
+      // Клик по правильно стоящей детали или по пустой клетке — игнор.
       return false;
     }
 
@@ -358,7 +366,8 @@ window.Game = (function () {
     }
 
     // (в) Клик по детали (не нашей группы) — переключение selection.
-    if (cell.part !== null) {
+    // Залоченные (стоящие на своём цвете) не выбираются.
+    if (cell.part !== null && !isLocked(cell)) {
       clearSelection();
       if (selectGridGroup(r, c)) {
         window.AudioFX.select();
@@ -467,6 +476,7 @@ window.Game = (function () {
     selectedCellSet: selectedCellSet,
     selectedSlotSet: selectedSlotSet,
     inventorySize: inventorySize,
+    isLocked: isLocked,
     // dev:
     _devSolve: devSolve,
   };
