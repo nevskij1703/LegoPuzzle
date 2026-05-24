@@ -244,29 +244,20 @@ button { font-family: inherit; }
   shape-rendering: geometricPrecision;
   transition: r 0.08s ease, stroke-width 0.1s ease;
 }
-/* Тень снизу-справа и блик сверху-слева — каждый общий gradient
-   из <defs>, применяется ко всем деталям одновременно. */
-.puzzle-svg .shadow,
-.puzzle-svg .highlight {
+/* Sheen — общий вертикальный gradient из <defs>: светлая полоса
+   сверху + тёмная снизу. Даёт «цилиндрический» вид. */
+.puzzle-svg .sheen {
   pointer-events: none;
   shape-rendering: geometricPrecision;
 }
 
 .puzzle-svg .cell.empty .bg { fill: transparent; pointer-events: none; }
 .puzzle-svg .cell.empty .part,
-.puzzle-svg .cell.empty .shadow,
-.puzzle-svg .cell.empty .highlight { display: none; }
+.puzzle-svg .cell.empty .sheen { display: none; }
 
 /* Selection — белая обводка + чуть крупнее. */
-.puzzle-svg .cell.selected .part {
-  stroke: #ffffff;
-  stroke-width: 0.08;
-  r: 0.36;
-}
-.puzzle-svg .cell.selected .shadow,
-.puzzle-svg .cell.selected .highlight {
-  r: 0.36;
-}
+.puzzle-svg .cell.selected .part { stroke: #ffffff; stroke-width: 0.08; r: 0.36; }
+.puzzle-svg .cell.selected .sheen { r: 0.36; }
 
 /* Locked — немного приглушена; объём (тень + блик) остаётся
    виден на любом фоне, поэтому деталь читается даже на своём цвете. */

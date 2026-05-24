@@ -42,7 +42,7 @@ window.UI = (function () {
     vx: 0, vy: 0,                       // top-left viewBox (в единицах клетки)
     vw: 1, vh: 1,                       // размер viewBox (видимая область)
     baseVw: 1, baseVh: 1,               // полный размер арта = level.cols/rows
-    minScale: 1,
+    minScale: 0.25,                     // можно отдалить в 4 раза от исходного
     maxScale: 5,
   };
   const pointers = new Map();
@@ -52,6 +52,11 @@ window.UI = (function () {
   let pinchInitialScale = 1;
   let pinchInitialFocalSvgX = 0;
   let pinchInitialFocalSvgY = 0;
+  // Запоминаем позицию начала тапа (pointerdown) — её используем для
+  // elementFromPoint при tap, иначе при микро-смещении пальца попадаем
+  // в соседнюю клетку.
+  let lastDownClientX = 0;
+  let lastDownClientY = 0;
 
   function currentScale() {
     return viewState.baseVw / viewState.vw;
@@ -67,18 +72,33 @@ window.UI = (function () {
   }
 
   function clampViewBox() {
+    // vw/vh лимиты: maxScale (зум in) → vw минимум baseVw/maxScale;
+    //               minScale (зум out) → vw максимум baseVw/minScale.
     const minVw = viewState.baseVw / viewState.maxScale;
+    const maxVw = viewState.baseVw / viewState.minScale;
     const minVh = viewState.baseVh / viewState.maxScale;
-    if (viewState.vw > viewState.baseVw) viewState.vw = viewState.baseVw;
-    if (viewState.vh > viewState.baseVh) viewState.vh = viewState.baseVh;
-    if (viewState.vw < minVw)            viewState.vw = minVw;
-    if (viewState.vh < minVh)            viewState.vh = minVh;
-    if (viewState.vx < 0)                viewState.vx = 0;
-    if (viewState.vy < 0)                viewState.vy = 0;
-    if (viewState.vx + viewState.vw > viewState.baseVw)
-      viewState.vx = viewState.baseVw - viewState.vw;
-    if (viewState.vy + viewState.vh > viewState.baseVh)
-      viewState.vy = viewState.baseVh - viewState.vh;
+    const maxVh = viewState.baseVh / viewState.minScale;
+    if (viewState.vw > maxVw) viewState.vw = maxVw;
+    if (viewState.vw < minVw) viewState.vw = minVw;
+    if (viewState.vh > maxVh) viewState.vh = maxVh;
+    if (viewState.vh < minVh) viewState.vh = minVh;
+    // Pan: при зуме in (vw <= baseVw) арт должен оставаться в видимости
+    // — clamp vx в [0, baseVw - vw]. При зуме out (vw > baseVw) арт
+    // помещается целиком — центрируем его.
+    if (viewState.vw <= viewState.baseVw) {
+      if (viewState.vx < 0) viewState.vx = 0;
+      if (viewState.vx + viewState.vw > viewState.baseVw)
+        viewState.vx = viewState.baseVw - viewState.vw;
+    } else {
+      viewState.vx = (viewState.baseVw - viewState.vw) / 2;
+    }
+    if (viewState.vh <= viewState.baseVh) {
+      if (viewState.vy < 0) viewState.vy = 0;
+      if (viewState.vy + viewState.vh > viewState.baseVh)
+        viewState.vy = viewState.baseVh - viewState.vh;
+    } else {
+      viewState.vy = (viewState.baseVh - viewState.vh) / 2;
+    }
   }
 
   function resetView() {
@@ -128,6 +148,10 @@ window.UI = (function () {
     try { el.viewport.setPointerCapture(ev.pointerId); } catch (e) {}
     const p = getViewportXY(ev);
     pointers.set(ev.pointerId, { x: p.x, y: p.y, startX: p.x, startY: p.y });
+    if (pointers.size === 1) {
+      lastDownClientX = ev.clientX;
+      lastDownClientY = ev.clientY;
+    }
     dragMoved = false;
     if (pointers.size === 2) {
       const pts = Array.from(pointers.values());
@@ -187,8 +211,10 @@ window.UI = (function () {
     if (pointers.size === 0) {
       el.viewport.classList.remove('dragging');
       if (!dragMoved) {
-        const elAt = document.elementFromPoint(ev.clientX, ev.clientY);
-        // closest работает на SVGElement тоже; ищем родительский <g data-r>.
+        // Берём позицию pointerdown — куда пользователь нажал, а не куда
+        // уехал палец перед отпусканием. На pointerup при микро-смещении
+        // ev.clientX/Y может «съехать» в соседнюю клетку.
+        const elAt = document.elementFromPoint(lastDownClientX, lastDownClientY);
         const cell = elAt && elAt.closest && elAt.closest('[data-r]');
         if (cell && el.puzzleGrid.contains(cell)) {
           const r = parseInt(cell.getAttribute('data-r'), 10);
@@ -304,42 +330,30 @@ window.UI = (function () {
     svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
     svg.classList.add('puzzle-svg');
 
-    // <defs>: общие градиенты для блика (сверху-слева) и тени (снизу-справа).
-    // Применяются ко всем деталям через fill="url(#...)". Это даёт 3D-объём
-    // — деталь видна даже когда стоит на подложке своего цвета (locked).
+    // <defs>: один вертикальный linearGradient для всех деталей.
+    // Сверху мягкая светлая полоса (блик), снизу мягкая тёмная полоса
+    // (тень). Даёт «цилиндрический» лего-вид (плоский верх с лёгким
+    // освещением сверху, тень внизу) — а не глянцевую полусферу.
     const defs = document.createElementNS(SVG_NS, 'defs');
 
-    const gHi = document.createElementNS(SVG_NS, 'radialGradient');
-    gHi.setAttribute('id', 'partHighlight');
-    gHi.setAttribute('cx', '0.32');
-    gHi.setAttribute('cy', '0.30');
-    gHi.setAttribute('r', '0.55');
-    const h1 = document.createElementNS(SVG_NS, 'stop');
-    h1.setAttribute('offset', '0%');
-    h1.setAttribute('stop-color', '#ffffff');
-    h1.setAttribute('stop-opacity', '0.55');
-    const h2 = document.createElementNS(SVG_NS, 'stop');
-    h2.setAttribute('offset', '60%');
-    h2.setAttribute('stop-color', '#ffffff');
-    h2.setAttribute('stop-opacity', '0');
-    gHi.appendChild(h1); gHi.appendChild(h2);
-    defs.appendChild(gHi);
-
-    const gSh = document.createElementNS(SVG_NS, 'radialGradient');
-    gSh.setAttribute('id', 'partShadow');
-    gSh.setAttribute('cx', '0.7');
-    gSh.setAttribute('cy', '0.75');
-    gSh.setAttribute('r', '0.55');
-    const s1 = document.createElementNS(SVG_NS, 'stop');
-    s1.setAttribute('offset', '40%');
-    s1.setAttribute('stop-color', '#000000');
-    s1.setAttribute('stop-opacity', '0');
-    const s2 = document.createElementNS(SVG_NS, 'stop');
-    s2.setAttribute('offset', '100%');
-    s2.setAttribute('stop-color', '#000000');
-    s2.setAttribute('stop-opacity', '0.45');
-    gSh.appendChild(s1); gSh.appendChild(s2);
-    defs.appendChild(gSh);
+    const gCyl = document.createElementNS(SVG_NS, 'linearGradient');
+    gCyl.setAttribute('id', 'partSheen');
+    gCyl.setAttribute('x1', '0'); gCyl.setAttribute('y1', '0');
+    gCyl.setAttribute('x2', '0'); gCyl.setAttribute('y2', '1');
+    const stops = [
+      { offset: '0%',   color: '#ffffff', op: 0.42 },
+      { offset: '32%',  color: '#ffffff', op: 0.00 },
+      { offset: '68%',  color: '#000000', op: 0.00 },
+      { offset: '100%', color: '#000000', op: 0.32 },
+    ];
+    stops.forEach(s => {
+      const stop = document.createElementNS(SVG_NS, 'stop');
+      stop.setAttribute('offset', s.offset);
+      stop.setAttribute('stop-color', s.color);
+      stop.setAttribute('stop-opacity', s.op);
+      gCyl.appendChild(stop);
+    });
+    defs.appendChild(gCyl);
 
     svg.appendChild(defs);
 
@@ -367,23 +381,15 @@ window.UI = (function () {
         circle.setAttribute('r', PART_RADIUS);
         g.appendChild(circle);
 
-        // Тень — overlay с radialGradient (тёмный угол снизу-справа).
-        const shadow = document.createElementNS(SVG_NS, 'circle');
-        shadow.setAttribute('class', 'shadow');
-        shadow.setAttribute('cx', c + 0.5);
-        shadow.setAttribute('cy', r + 0.5);
-        shadow.setAttribute('r', PART_RADIUS);
-        shadow.setAttribute('fill', 'url(#partShadow)');
-        g.appendChild(shadow);
-
-        // Блик — overlay с radialGradient (светлый угол сверху-слева).
-        const highlight = document.createElementNS(SVG_NS, 'circle');
-        highlight.setAttribute('class', 'highlight');
-        highlight.setAttribute('cx', c + 0.5);
-        highlight.setAttribute('cy', r + 0.5);
-        highlight.setAttribute('r', PART_RADIUS);
-        highlight.setAttribute('fill', 'url(#partHighlight)');
-        g.appendChild(highlight);
+        // Sheen — вертикальный градиент для цилиндрического вида:
+        // светлая полоса сверху, тёмная снизу.
+        const sheen = document.createElementNS(SVG_NS, 'circle');
+        sheen.setAttribute('class', 'sheen');
+        sheen.setAttribute('cx', c + 0.5);
+        sheen.setAttribute('cy', r + 0.5);
+        sheen.setAttribute('r', PART_RADIUS);
+        sheen.setAttribute('fill', 'url(#partSheen)');
+        g.appendChild(sheen);
 
         frag.appendChild(g);
       }
@@ -424,10 +430,9 @@ window.UI = (function () {
         const g = nodes[idx++];
         if (!g) continue;
         const data = state.grid[r][c];
-        const rect      = g.children[0]; // bg
-        const circle    = g.children[1]; // основной part
-        const shadow    = g.children[2]; // overlay shadow
-        const highlight = g.children[3]; // overlay highlight
+        const rect   = g.children[0]; // bg
+        const circle = g.children[1]; // основной part
+        const sheen  = g.children[2]; // overlay sheen (linearGradient)
 
         // bg
         if (data.bg === null) {
@@ -438,15 +443,13 @@ window.UI = (function () {
           rect.setAttribute('fill', window.Game.colorHex(data.bg) || '#000');
         }
 
-        // part / overlay — все 3 показаны вместе или скрыты вместе
+        // part / sheen — показаны вместе или скрыты вместе
         if (data.part === null) {
           circle.style.display = 'none';
-          shadow.style.display = 'none';
-          highlight.style.display = 'none';
+          sheen.style.display = 'none';
         } else {
           circle.style.display = '';
-          shadow.style.display = '';
-          highlight.style.display = '';
+          sheen.style.display = '';
           circle.setAttribute('fill', window.Game.colorHex(data.part) || '#000');
         }
 
