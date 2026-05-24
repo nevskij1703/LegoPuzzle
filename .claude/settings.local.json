@@ -20,7 +20,8 @@
       "Bash(node --check game.js)",
       "Bash(node --check ui.js)",
       "Bash(node -e ' *)",
-      "Bash(node --check levels.js)"
+      "Bash(node --check levels.js)",
+      "Bash(rm tools/_cat_snippet.js)"
     ]
   }
 }
