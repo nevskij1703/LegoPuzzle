@@ -51,19 +51,16 @@
       window.location.reload();
     });
 
-    const startBtn = document.createElement('button');
-    startBtn.textContent = '▶ Уровень 1';
-    startBtn.addEventListener('click', () => {
-      window.Game.startLevel(1);
-      window.UI.buildGridDOM();
-      window.UI.buildInventoryDOM();
-      window.UI.render();
-      window.UI.showScreen('screen-game');
+    // Быстрый запуск каждого уровня.
+    (window.LEVELS || []).forEach(level => {
+      const b = document.createElement('button');
+      b.textContent = '▶ Уровень ' + level.id + ': ' + level.name;
+      b.addEventListener('click', () => window.UI.startLevelInUI(level.id));
+      panel.appendChild(b);
     });
 
     panel.appendChild(solveBtn);
     panel.appendChild(resetSaveBtn);
-    panel.appendChild(startBtn);
     document.body.appendChild(panel);
   }
   /* /HTML2APK:DEV_ONLY */

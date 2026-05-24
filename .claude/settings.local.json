@@ -18,7 +18,9 @@
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
       "Bash(node --check game.js)",
-      "Bash(node --check ui.js)"
+      "Bash(node --check ui.js)",
+      "Bash(node -e ' *)",
+      "Bash(node --check levels.js)"
     ]
   }
 }

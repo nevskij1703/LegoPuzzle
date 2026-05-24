@@ -97,6 +97,54 @@ button { font-family: inherit; }
 }
 .btn-primary:hover { opacity: 0.92; }
 
+/* ===== Список уровней на главной ===== */
+.levels-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  width: 100%;
+  max-width: 380px;
+  margin: 0 auto;
+}
+.level-card {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  grid-template-rows: auto auto;
+  grid-column-gap: 14px;
+  align-items: center;
+  background: var(--bg-1);
+  border: 1px solid var(--stroke);
+  border-radius: 14px;
+  padding: 14px 16px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  font-family: inherit;
+  transition: transform 0.08s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.level-card:hover {
+  border-color: rgba(255,255,255,0.18);
+  background: var(--bg-2);
+}
+.level-card:active { transform: scale(0.98); }
+.level-card .level-num {
+  grid-row: 1 / span 2;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--bg-0);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 16px;
+}
+.level-card .level-name {
+  font-size: 16px;
+  font-weight: 600;
+}
+.level-card .level-meta {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
 /* ===== Игровой экран ===== */
 #screen-game {
   display: none;
@@ -174,13 +222,8 @@ button { font-family: inherit; }
   pointer-events: none;
 }
 
-.cell[data-bg="Y"] { background: var(--c-Y); }
-.cell[data-bg="R"] { background: var(--c-R); }
-.cell[data-bg="B"] { background: var(--c-B); }
-.cell[data-bg="W"] { background: var(--c-W); }
-.cell[data-bg="G"] { background: var(--c-G); }
-.cell[data-bg="L"] { background: var(--c-L); }
-.cell[data-bg="O"] { background: var(--c-O); }
+/* Цвета подложек/деталей задаются inline через style.backgroundColor
+   из game.colorHex() (палитра уровня + GAME_CONFIG.COLORS как fallback). */
 
 .cell .part {
   position: absolute;
@@ -193,14 +236,6 @@ button { font-family: inherit; }
     0 1px 2px rgba(0,0,0,0.3);
   transition: transform 0.08s ease, box-shadow 0.15s ease;
 }
-.cell[data-part=""] .part { display: none; }
-.cell[data-part="Y"] .part { background: var(--c-Y); }
-.cell[data-part="R"] .part { background: var(--c-R); }
-.cell[data-part="B"] .part { background: var(--c-B); }
-.cell[data-part="W"] .part { background: var(--c-W); }
-.cell[data-part="G"] .part { background: var(--c-G); }
-.cell[data-part="L"] .part { background: var(--c-L); }
-.cell[data-part="O"] .part { background: var(--c-O); }
 
 /* Подсветка selection */
 .cell[data-selected="true"] {
@@ -235,11 +270,16 @@ button { font-family: inherit; }
   border-bottom: 2px solid rgba(255,255,255,0.55);
   pointer-events: none;
 }
-/* На светлых подложках — тёмная галочка чтобы был контраст */
-.cell[data-locked="true"][data-bg="Y"]::after,
-.cell[data-locked="true"][data-bg="W"]::after {
+/* На светлых подложках тёмная галочка — для контраста (data-bg-light ставится в ui.js). */
+.cell[data-locked="true"][data-bg-light="true"]::after {
   border-right-color: rgba(0,0,0,0.45);
   border-bottom-color: rgba(0,0,0,0.45);
+}
+
+/* На больших сетках галочка-маркер становится нечитаемой — скрываем. */
+.puzzle-grid.grid-huge .cell[data-locked="true"]::after { display: none; }
+.puzzle-grid.grid-large .cell[data-locked="true"]::after {
+  width: 22%; height: 22%;
 }
 
 /* ===== Инвентарь ===== */
@@ -283,14 +323,6 @@ button { font-family: inherit; }
     0 1px 2px rgba(0,0,0,0.3);
   transition: transform 0.08s ease, box-shadow 0.15s ease;
 }
-.slot[data-part=""] .part { display: none; }
-.slot[data-part="Y"] .part { background: var(--c-Y); }
-.slot[data-part="R"] .part { background: var(--c-R); }
-.slot[data-part="B"] .part { background: var(--c-B); }
-.slot[data-part="W"] .part { background: var(--c-W); }
-.slot[data-part="G"] .part { background: var(--c-G); }
-.slot[data-part="L"] .part { background: var(--c-L); }
-.slot[data-part="O"] .part { background: var(--c-O); }
 
 .slot[data-selected="true"] .part {
   transform: scale(1.15);

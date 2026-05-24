@@ -30,7 +30,19 @@ window.Game = (function () {
     selection: null,
     initialParts: [],
     complete: false,
+    // Эффективная палитра уровня: { код: hex }.
+    // Заполняется в startLevel() как merge(GAME_CONFIG.COLORS, level.colors).
+    colors: {},
+    // Набор кодов с hex='transparent' — bg=этим кодам преобразуется в null.
+    transparentCodes: new Set(),
   };
+
+  // Вернуть hex по коду цвета (с fallback на глобальную палитру).
+  function colorHex(code) {
+    if (code === null || code === undefined) return null;
+    if (state.colors && code in state.colors) return state.colors[code];
+    return (window.GAME_CONFIG.COLORS && window.GAME_CONFIG.COLORS[code]) || null;
+  }
 
   // ===== Утилиты =====
 
@@ -112,13 +124,15 @@ window.Game = (function () {
 
   // ===== Генерация начальной раскладки =====
 
-  function buildInitialGrid(level) {
+  function buildInitialGrid(level, transparentCodes) {
     const grid = [];
     const colors = [];
     for (let r = 0; r < level.rows; r++) {
       const row = [];
       for (let c = 0; c < level.cols; c++) {
-        const bg = (level.bg[r] && level.bg[r][c]) || null;
+        let bg = (level.bg[r] && level.bg[r][c]) || null;
+        // Прозрачные коды (hex=transparent) трактуем как «вне арта».
+        if (bg !== null && transparentCodes && transparentCodes.has(bg)) bg = null;
         row.push({ bg: bg, part: null });
         if (bg !== null) colors.push(bg);
       }
@@ -220,7 +234,19 @@ window.Game = (function () {
     state.levelId = level.id;
     state.rows = level.rows;
     state.cols = level.cols;
-    state.grid = buildInitialGrid(level);
+
+    // Эффективная палитра: дефолты GAME_CONFIG.COLORS + override из level.colors.
+    state.colors = Object.assign({}, window.GAME_CONFIG.COLORS, level.colors || {});
+    // Какие коды считаются «вне арта» (transparent / null / пусто).
+    state.transparentCodes = new Set();
+    for (const code in state.colors) {
+      const hex = state.colors[code];
+      if (hex === 'transparent' || hex === null || hex === '') {
+        state.transparentCodes.add(code);
+      }
+    }
+
+    state.grid = buildInitialGrid(level, state.transparentCodes);
     state.inventory = new Array(inventorySize()).fill(null);
     state.selection = null;
     state.initialParts = snapshotParts(state.grid);
@@ -477,6 +503,7 @@ window.Game = (function () {
     selectedSlotSet: selectedSlotSet,
     inventorySize: inventorySize,
     isLocked: isLocked,
+    colorHex: colorHex,
     // dev:
     _devSolve: devSolve,
   };

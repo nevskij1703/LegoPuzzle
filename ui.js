@@ -7,10 +7,19 @@
 window.UI = (function () {
   const el = {};
 
+  // Perceived luminance > 160 → светлый цвет (нужна тёмная контрастная галочка).
+  function isLightHex(hex) {
+    if (!hex || typeof hex !== 'string' || hex[0] !== '#' || hex.length < 7) return false;
+    const r = parseInt(hex.substr(1, 2), 16);
+    const g = parseInt(hex.substr(3, 2), 16);
+    const b = parseInt(hex.substr(5, 2), 16);
+    return (0.299 * r + 0.587 * g + 0.114 * b) > 160;
+  }
+
   function cacheDom() {
     el.screenHome  = document.getElementById('screen-home');
     el.screenGame  = document.getElementById('screen-game');
-    el.btnPlay     = document.getElementById('btn-play');
+    el.levelsList  = document.getElementById('levels-list');
     el.btnBack     = document.getElementById('btn-back');
     el.btnReset    = document.getElementById('btn-reset');
     el.levelTitle  = document.getElementById('level-title');
@@ -19,6 +28,34 @@ window.UI = (function () {
     el.inventory   = document.getElementById('inventory');
     el.winOverlay  = document.getElementById('win-overlay');
     el.btnWinNext  = document.getElementById('btn-win-next');
+  }
+
+  function startLevelInUI(id) {
+    window.Game.startLevel(id);
+    buildGridDOM();
+    buildInventoryDOM();
+    render();
+    showScreen('screen-game');
+  }
+
+  function renderLevelsList() {
+    if (!el.levelsList) return;
+    el.levelsList.innerHTML = '';
+    const completed = window.Storage.getCompletedLevels();
+    const frag = document.createDocumentFragment();
+    window.LEVELS.forEach(level => {
+      const card = document.createElement('button');
+      card.className = 'level-card';
+      card.dataset.id = level.id;
+      const done = completed.includes(level.id) ? ' • ✓ пройден' : '';
+      card.innerHTML =
+        '<div class="level-num">' + level.id + '</div>' +
+        '<div class="level-name">' + level.name + '</div>' +
+        '<div class="level-meta">' + level.rows + '×' + level.cols + ' • ' + level.difficulty + done + '</div>';
+      card.addEventListener('click', () => startLevelInUI(level.id));
+      frag.appendChild(card);
+    });
+    el.levelsList.appendChild(frag);
   }
 
   // ===== Экраны =====
@@ -41,7 +78,25 @@ window.UI = (function () {
     const state = window.Game.state;
     el.puzzleGrid.style.setProperty('--cols', state.cols);
     el.puzzleGrid.style.setProperty('--rows', state.rows);
+    // Для больших сеток ужимаем gap и inset детали — иначе круги слишком мелкие.
+    const maxSide = Math.max(state.rows, state.cols);
+    el.puzzleGrid.classList.toggle('grid-large', maxSide >= 15);
+    el.puzzleGrid.classList.toggle('grid-huge', maxSide >= 25);
+    if (maxSide >= 25) {
+      el.puzzleGrid.style.setProperty('--grid-gap', '1px');
+      el.puzzleGrid.style.setProperty('--part-inset', '6%');
+      el.puzzleGrid.style.setProperty('--grid-radius', '2px');
+    } else if (maxSide >= 15) {
+      el.puzzleGrid.style.setProperty('--grid-gap', '1px');
+      el.puzzleGrid.style.setProperty('--part-inset', '10%');
+      el.puzzleGrid.style.setProperty('--grid-radius', '3px');
+    } else {
+      el.puzzleGrid.style.setProperty('--grid-gap', '2px');
+      el.puzzleGrid.style.setProperty('--part-inset', '14%');
+      el.puzzleGrid.style.setProperty('--grid-radius', '4px');
+    }
     el.puzzleGrid.innerHTML = '';
+    const frag = document.createDocumentFragment();
     for (let r = 0; r < state.rows; r++) {
       for (let c = 0; c < state.cols; c++) {
         const cell = document.createElement('div');
@@ -51,9 +106,10 @@ window.UI = (function () {
         const part = document.createElement('span');
         part.className = 'part';
         cell.appendChild(part);
-        el.puzzleGrid.appendChild(cell);
+        frag.appendChild(cell);
       }
     }
+    el.puzzleGrid.appendChild(frag);
   }
 
   function buildInventoryDOM() {
@@ -83,16 +139,26 @@ window.UI = (function () {
         // bg
         if (data.bg === null) {
           cell.dataset.bg = '';
+          cell.dataset.bgLight = '';
           cell.classList.add('empty');
+          cell.style.backgroundColor = '';
         } else {
+          const hex = window.Game.colorHex(data.bg);
           cell.dataset.bg = data.bg;
+          cell.dataset.bgLight = isLightHex(hex) ? 'true' : 'false';
           cell.classList.remove('empty');
+          cell.style.backgroundColor = hex || '';
         }
         // part
+        const partEl = cell.firstElementChild;
         if (data.part === null) {
           cell.dataset.part = '';
+          partEl.style.backgroundColor = '';
+          partEl.style.display = 'none';
         } else {
           cell.dataset.part = data.part;
+          partEl.style.backgroundColor = window.Game.colorHex(data.part) || '';
+          partEl.style.display = '';
         }
         // locked: деталь стоит на своём цвете — не интерактивна
         cell.dataset.locked = window.Game.isLocked(data) ? 'true' : 'false';
@@ -109,10 +175,15 @@ window.UI = (function () {
     for (let i = 0; i < state.inventory.length; i++) {
       const slot = nodes[i];
       const color = state.inventory[i];
+      const partEl = slot.firstElementChild;
       if (color === null) {
         slot.dataset.part = '';
+        partEl.style.backgroundColor = '';
+        partEl.style.display = 'none';
       } else {
         slot.dataset.part = color;
+        partEl.style.backgroundColor = window.Game.colorHex(color) || '';
+        partEl.style.display = '';
       }
       slot.dataset.selected = selSet.has(i) ? 'true' : 'false';
     }
@@ -158,14 +229,8 @@ window.UI = (function () {
   }
 
   function bindHandlers() {
-    if (el.btnPlay) el.btnPlay.addEventListener('click', () => {
-      window.Game.init();
-      buildGridDOM();
-      buildInventoryDOM();
-      render();
-      showScreen('screen-game');
-    });
     if (el.btnBack) el.btnBack.addEventListener('click', () => {
+      renderLevelsList();
       showScreen('screen-home');
     });
     if (el.btnReset) el.btnReset.addEventListener('click', () => {
@@ -174,6 +239,7 @@ window.UI = (function () {
     });
     if (el.btnWinNext) el.btnWinNext.addEventListener('click', () => {
       hideWinOverlay();
+      renderLevelsList();
       showScreen('screen-home');
     });
     if (el.puzzleGrid) el.puzzleGrid.addEventListener('click', onGridClick);
@@ -183,6 +249,7 @@ window.UI = (function () {
   function init() {
     cacheDom();
     bindHandlers();
+    renderLevelsList();
     showScreen('screen-home');
   }
 
@@ -192,5 +259,7 @@ window.UI = (function () {
     showScreen: showScreen,
     buildGridDOM: buildGridDOM,
     buildInventoryDOM: buildInventoryDOM,
+    renderLevelsList: renderLevelsList,
+    startLevelInUI: startLevelInUI,
   };
 })();
