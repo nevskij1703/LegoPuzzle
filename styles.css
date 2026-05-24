@@ -196,12 +196,15 @@ button { font-family: inherit; }
   text-align: center;
 }
 
-/* Viewport — прозрачная коробка (без видимой рамки), overflow:hidden чтобы
-   зум не задевал шапку/инвентарь, но визуально границы не «обрезаются». */
+/* Viewport — прозрачная коробка без видимой рамки. Расширяется на
+   максимум доступного места между шапкой и инвентарём, чтобы при zoom
+   обрезка не бросалась в глаза. overflow:hidden оставлен (чтобы зум не
+   зашёл на шапку/инвентарь), но визуально границы не выделены. */
 .board-viewport {
   position: relative;
   width: 100%;
-  max-width: min(92vw, 480px);
+  max-width: 92vw;
+  max-height: calc(100dvh - 240px);   /* запас под header + inventory + zoom-control */
   aspect-ratio: 1;
   background: transparent;
   border-radius: 0;
@@ -218,44 +221,57 @@ button { font-family: inherit; }
   top: 0; left: 0;
   width: 100%;
   height: 100%;
-  /* transform-origin: 0 0 — для простой математики zoom-to-point.
-     transform задаётся inline из ui.js (translate + scale). */
-  transform-origin: 0 0;
-  will-change: transform;
+  /* Никакого CSS-transform — zoom/pan теперь через SVG viewBox.
+     Это гарантирует векторный рендер без размытия при любом scale. */
 }
 
 /* Векторная отрисовка поля. SVG viewBox = cols × rows, координаты в
-   единицах клетки. При любом scale остаётся резким (не «мылится»). */
+   единицах клетки. Zoom = уменьшение viewBox; pan = сдвиг viewBox.x/y. */
 .puzzle-svg {
   display: block;
   width: 100%;
   height: 100%;
-  /* shape-rendering: crispEdges делает rect-границы чёткими (без AA);
-     для пиксель-арта это даёт идеальный «лего»-вид. */
   shape-rendering: crispEdges;
 }
 .puzzle-svg .bg {
   pointer-events: all;
 }
 .puzzle-svg .part {
-  /* circle ловит pointer-события сам, но при locked это не нужно — см. ниже */
   pointer-events: none;
+  stroke: rgba(0, 0, 0, 0.35);
+  stroke-width: 0.035;
+  paint-order: stroke;
+  shape-rendering: geometricPrecision;
   transition: r 0.08s ease, stroke-width 0.1s ease;
-  shape-rendering: geometricPrecision;  /* кружки без AA выглядят рвано */
 }
-.puzzle-svg .cell.empty .bg { fill: transparent; pointer-events: none; }
-.puzzle-svg .cell.empty .part { display: none; }
+/* Тень снизу-справа и блик сверху-слева — каждый общий gradient
+   из <defs>, применяется ко всем деталям одновременно. */
+.puzzle-svg .shadow,
+.puzzle-svg .highlight {
+  pointer-events: none;
+  shape-rendering: geometricPrecision;
+}
 
-/* Selection — на детали появляется белая обводка и она чуть больше. */
+.puzzle-svg .cell.empty .bg { fill: transparent; pointer-events: none; }
+.puzzle-svg .cell.empty .part,
+.puzzle-svg .cell.empty .shadow,
+.puzzle-svg .cell.empty .highlight { display: none; }
+
+/* Selection — белая обводка + чуть крупнее. */
 .puzzle-svg .cell.selected .part {
   stroke: #ffffff;
   stroke-width: 0.08;
   r: 0.36;
 }
+.puzzle-svg .cell.selected .shadow,
+.puzzle-svg .cell.selected .highlight {
+  r: 0.36;
+}
 
-/* Locked — немного приглушена + cursor default. */
+/* Locked — немного приглушена; объём (тень + блик) остаётся
+   виден на любом фоне, поэтому деталь читается даже на своём цвете. */
 .puzzle-svg .cell.locked { cursor: default; }
-.puzzle-svg .cell.locked .part { opacity: 0.9; }
+.puzzle-svg .cell.locked .part { opacity: 0.92; }
 
 /* ===== Zoom control справа-внизу board-viewport ===== */
 .zoom-control {

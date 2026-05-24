@@ -35,68 +35,84 @@ window.UI = (function () {
     el.zoomValue   = document.getElementById('zoom-value');
   }
 
-  // ===== Viewport: zoom + pan =====
+  // ===== Viewport: zoom + pan через SVG viewBox =====
+  // Zoom управляет viewBox SVG напрямую — содержимое остаётся векторным
+  // при любом масштабе (без размытия от CSS transform).
   const viewState = {
-    scale: 1,
-    offsetX: 0,
-    offsetY: 0,
+    vx: 0, vy: 0,                       // top-left viewBox (в единицах клетки)
+    vw: 1, vh: 1,                       // размер viewBox (видимая область)
+    baseVw: 1, baseVh: 1,               // полный размер арта = level.cols/rows
     minScale: 1,
-    maxScale: 4,
+    maxScale: 5,
   };
-  const pointers = new Map();           // pointerId → {x, y, startX, startY}
-  let dragMoved = false;                 // true как только палец/курсор сдвинулся за порог
+  const pointers = new Map();
+  let dragMoved = false;
   const DRAG_THRESHOLD = 6;              // px
   let pinchInitialDist = 0;
   let pinchInitialScale = 1;
-  let pinchInitialWorldX = 0;
-  let pinchInitialWorldY = 0;
+  let pinchInitialFocalSvgX = 0;
+  let pinchInitialFocalSvgY = 0;
 
-  function applyTransform() {
-    if (!el.puzzleGrid) return;
-    el.puzzleGrid.style.transform =
-      'translate(' + viewState.offsetX + 'px,' + viewState.offsetY + 'px) scale(' + viewState.scale + ')';
-    if (el.zoomSlider) el.zoomSlider.value = viewState.scale;
-    if (el.zoomValue) el.zoomValue.textContent = viewState.scale.toFixed(2).replace(/\.?0+$/, '') + '×';
+  function currentScale() {
+    return viewState.baseVw / viewState.vw;
   }
 
-  function clampOffsets() {
-    if (!el.viewport) return;
-    const vpW = el.viewport.clientWidth, vpH = el.viewport.clientHeight;
-    const scaledW = vpW * viewState.scale;
-    const scaledH = vpH * viewState.scale;
-    const minX = Math.min(0, vpW - scaledW);
-    const minY = Math.min(0, vpH - scaledH);
-    if (viewState.offsetX < minX) viewState.offsetX = minX;
-    if (viewState.offsetX > 0)    viewState.offsetX = 0;
-    if (viewState.offsetY < minY) viewState.offsetY = minY;
-    if (viewState.offsetY > 0)    viewState.offsetY = 0;
+  function applyViewBox() {
+    if (!el.svg) return;
+    el.svg.setAttribute('viewBox',
+      viewState.vx + ' ' + viewState.vy + ' ' + viewState.vw + ' ' + viewState.vh);
+    const scale = currentScale();
+    if (el.zoomSlider) el.zoomSlider.value = scale;
+    if (el.zoomValue)  el.zoomValue.textContent = scale.toFixed(2).replace(/\.?0+$/, '') + '×';
+  }
+
+  function clampViewBox() {
+    const minVw = viewState.baseVw / viewState.maxScale;
+    const minVh = viewState.baseVh / viewState.maxScale;
+    if (viewState.vw > viewState.baseVw) viewState.vw = viewState.baseVw;
+    if (viewState.vh > viewState.baseVh) viewState.vh = viewState.baseVh;
+    if (viewState.vw < minVw)            viewState.vw = minVw;
+    if (viewState.vh < minVh)            viewState.vh = minVh;
+    if (viewState.vx < 0)                viewState.vx = 0;
+    if (viewState.vy < 0)                viewState.vy = 0;
+    if (viewState.vx + viewState.vw > viewState.baseVw)
+      viewState.vx = viewState.baseVw - viewState.vw;
+    if (viewState.vy + viewState.vh > viewState.baseVh)
+      viewState.vy = viewState.baseVh - viewState.vh;
   }
 
   function resetView() {
-    viewState.scale = 1;
-    viewState.offsetX = 0;
-    viewState.offsetY = 0;
-    applyTransform();
+    viewState.vx = 0;
+    viewState.vy = 0;
+    viewState.vw = viewState.baseVw;
+    viewState.vh = viewState.baseVh;
+    applyViewBox();
   }
 
-  // Установить scale, держа точку (focalX, focalY) viewport-координат под курсором.
+  // Установить новый scale, чтобы (focalX, focalY) в координатах viewport-px
+  // указывал на ту же точку SVG.
   function zoomAt(newScale, focalX, focalY) {
     newScale = Math.max(viewState.minScale, Math.min(viewState.maxScale, newScale));
-    if (newScale === viewState.scale) return;
-    const worldX = (focalX - viewState.offsetX) / viewState.scale;
-    const worldY = (focalY - viewState.offsetY) / viewState.scale;
-    viewState.scale = newScale;
-    viewState.offsetX = focalX - worldX * newScale;
-    viewState.offsetY = focalY - worldY * newScale;
-    clampOffsets();
-    applyTransform();
+    if (Math.abs(newScale - currentScale()) < 1e-6) return;
+    const vp = el.viewport;
+    const vpW = vp.clientWidth, vpH = vp.clientHeight;
+    const focalSvgX = viewState.vx + focalX * viewState.vw / vpW;
+    const focalSvgY = viewState.vy + focalY * viewState.vh / vpH;
+    viewState.vw = viewState.baseVw / newScale;
+    viewState.vh = viewState.baseVh / newScale;
+    viewState.vx = focalSvgX - focalX * viewState.vw / vpW;
+    viewState.vy = focalSvgY - focalY * viewState.vh / vpH;
+    clampViewBox();
+    applyViewBox();
   }
 
-  function panBy(dx, dy) {
-    viewState.offsetX += dx;
-    viewState.offsetY += dy;
-    clampOffsets();
-    applyTransform();
+  function panBy(dxPx, dyPx) {
+    const vp = el.viewport;
+    const vpW = vp.clientWidth, vpH = vp.clientHeight;
+    viewState.vx -= dxPx * viewState.vw / vpW;
+    viewState.vy -= dyPx * viewState.vh / vpH;
+    clampViewBox();
+    applyViewBox();
   }
 
   function getViewportXY(ev) {
@@ -117,11 +133,12 @@ window.UI = (function () {
       const pts = Array.from(pointers.values());
       const p1 = pts[0], p2 = pts[1];
       pinchInitialDist = Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1;
-      pinchInitialScale = viewState.scale;
+      pinchInitialScale = currentScale();
       const fx = (p1.x + p2.x) / 2;
       const fy = (p1.y + p2.y) / 2;
-      pinchInitialWorldX = (fx - viewState.offsetX) / viewState.scale;
-      pinchInitialWorldY = (fy - viewState.offsetY) / viewState.scale;
+      const vpW = el.viewport.clientWidth, vpH = el.viewport.clientHeight;
+      pinchInitialFocalSvgX = viewState.vx + fx * viewState.vw / vpW;
+      pinchInitialFocalSvgY = viewState.vy + fy * viewState.vh / vpH;
       dragMoved = true;
     }
   }
@@ -151,11 +168,13 @@ window.UI = (function () {
       const fy = (p1.y + p2.y) / 2;
       const newScale = Math.max(viewState.minScale,
         Math.min(viewState.maxScale, pinchInitialScale * dist / pinchInitialDist));
-      viewState.scale = newScale;
-      viewState.offsetX = fx - pinchInitialWorldX * newScale;
-      viewState.offsetY = fy - pinchInitialWorldY * newScale;
-      clampOffsets();
-      applyTransform();
+      const vpW = el.viewport.clientWidth, vpH = el.viewport.clientHeight;
+      viewState.vw = viewState.baseVw / newScale;
+      viewState.vh = viewState.baseVh / newScale;
+      viewState.vx = pinchInitialFocalSvgX - fx * viewState.vw / vpW;
+      viewState.vy = pinchInitialFocalSvgY - fy * viewState.vh / vpH;
+      clampViewBox();
+      applyViewBox();
     }
   }
 
@@ -192,7 +211,7 @@ window.UI = (function () {
     ev.preventDefault();
     const p = getViewportXY(ev);
     const factor = ev.deltaY < 0 ? 1.12 : 1 / 1.12;
-    zoomAt(viewState.scale * factor, p.x, p.y);
+    zoomAt(currentScale() * factor, p.x, p.y);
   }
 
   function onSliderInput() {
@@ -214,14 +233,14 @@ window.UI = (function () {
     if (el.zoomIn) el.zoomIn.addEventListener('click', () => {
       const cx = el.viewport.clientWidth / 2;
       const cy = el.viewport.clientHeight / 2;
-      zoomAt(viewState.scale * 1.25, cx, cy);
+      zoomAt(currentScale() * 1.25, cx, cy);
     });
     if (el.zoomOut) el.zoomOut.addEventListener('click', () => {
       const cx = el.viewport.clientWidth / 2;
       const cy = el.viewport.clientHeight / 2;
-      zoomAt(viewState.scale / 1.25, cx, cy);
+      zoomAt(currentScale() / 1.25, cx, cy);
     });
-    window.addEventListener('resize', () => { clampOffsets(); applyTransform(); });
+    window.addEventListener('resize', () => { clampViewBox(); applyViewBox(); });
   }
 
   function startLevelInUI(id) {
@@ -285,6 +304,45 @@ window.UI = (function () {
     svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
     svg.classList.add('puzzle-svg');
 
+    // <defs>: общие градиенты для блика (сверху-слева) и тени (снизу-справа).
+    // Применяются ко всем деталям через fill="url(#...)". Это даёт 3D-объём
+    // — деталь видна даже когда стоит на подложке своего цвета (locked).
+    const defs = document.createElementNS(SVG_NS, 'defs');
+
+    const gHi = document.createElementNS(SVG_NS, 'radialGradient');
+    gHi.setAttribute('id', 'partHighlight');
+    gHi.setAttribute('cx', '0.32');
+    gHi.setAttribute('cy', '0.30');
+    gHi.setAttribute('r', '0.55');
+    const h1 = document.createElementNS(SVG_NS, 'stop');
+    h1.setAttribute('offset', '0%');
+    h1.setAttribute('stop-color', '#ffffff');
+    h1.setAttribute('stop-opacity', '0.55');
+    const h2 = document.createElementNS(SVG_NS, 'stop');
+    h2.setAttribute('offset', '60%');
+    h2.setAttribute('stop-color', '#ffffff');
+    h2.setAttribute('stop-opacity', '0');
+    gHi.appendChild(h1); gHi.appendChild(h2);
+    defs.appendChild(gHi);
+
+    const gSh = document.createElementNS(SVG_NS, 'radialGradient');
+    gSh.setAttribute('id', 'partShadow');
+    gSh.setAttribute('cx', '0.7');
+    gSh.setAttribute('cy', '0.75');
+    gSh.setAttribute('r', '0.55');
+    const s1 = document.createElementNS(SVG_NS, 'stop');
+    s1.setAttribute('offset', '40%');
+    s1.setAttribute('stop-color', '#000000');
+    s1.setAttribute('stop-opacity', '0');
+    const s2 = document.createElementNS(SVG_NS, 'stop');
+    s2.setAttribute('offset', '100%');
+    s2.setAttribute('stop-color', '#000000');
+    s2.setAttribute('stop-opacity', '0.45');
+    gSh.appendChild(s1); gSh.appendChild(s2);
+    defs.appendChild(gSh);
+
+    svg.appendChild(defs);
+
     const frag = document.createDocumentFragment();
     for (let r = 0; r < state.rows; r++) {
       for (let c = 0; c < state.cols; c++) {
@@ -301,6 +359,7 @@ window.UI = (function () {
         rect.setAttribute('height', 1);
         g.appendChild(rect);
 
+        // Основная деталь (цвет, обводка).
         const circle = document.createElementNS(SVG_NS, 'circle');
         circle.setAttribute('class', 'part');
         circle.setAttribute('cx', c + 0.5);
@@ -308,12 +367,35 @@ window.UI = (function () {
         circle.setAttribute('r', PART_RADIUS);
         g.appendChild(circle);
 
+        // Тень — overlay с radialGradient (тёмный угол снизу-справа).
+        const shadow = document.createElementNS(SVG_NS, 'circle');
+        shadow.setAttribute('class', 'shadow');
+        shadow.setAttribute('cx', c + 0.5);
+        shadow.setAttribute('cy', r + 0.5);
+        shadow.setAttribute('r', PART_RADIUS);
+        shadow.setAttribute('fill', 'url(#partShadow)');
+        g.appendChild(shadow);
+
+        // Блик — overlay с radialGradient (светлый угол сверху-слева).
+        const highlight = document.createElementNS(SVG_NS, 'circle');
+        highlight.setAttribute('class', 'highlight');
+        highlight.setAttribute('cx', c + 0.5);
+        highlight.setAttribute('cy', r + 0.5);
+        highlight.setAttribute('r', PART_RADIUS);
+        highlight.setAttribute('fill', 'url(#partHighlight)');
+        g.appendChild(highlight);
+
         frag.appendChild(g);
       }
     }
     svg.appendChild(frag);
     el.puzzleGrid.appendChild(svg);
     el.svg = svg;
+    el.svgCells = svg.querySelectorAll('g.cell');
+
+    // viewBox state — синхронизируем с размером арта.
+    viewState.baseVw = state.cols;
+    viewState.baseVh = state.rows;
   }
 
   function buildInventoryDOM() {
@@ -334,16 +416,18 @@ window.UI = (function () {
   function renderGrid() {
     const state = window.Game.state;
     const selSet = window.Game.selectedCellSet();
-    if (!el.svg) return;
-    const nodes = el.svg.children;
+    if (!el.svgCells) return;
+    const nodes = el.svgCells;
     let idx = 0;
     for (let r = 0; r < state.rows; r++) {
       for (let c = 0; c < state.cols; c++) {
         const g = nodes[idx++];
         if (!g) continue;
         const data = state.grid[r][c];
-        const rect = g.firstElementChild;
-        const circle = rect.nextElementSibling;
+        const rect      = g.children[0]; // bg
+        const circle    = g.children[1]; // основной part
+        const shadow    = g.children[2]; // overlay shadow
+        const highlight = g.children[3]; // overlay highlight
 
         // bg
         if (data.bg === null) {
@@ -354,12 +438,15 @@ window.UI = (function () {
           rect.setAttribute('fill', window.Game.colorHex(data.bg) || '#000');
         }
 
-        // part
+        // part / overlay — все 3 показаны вместе или скрыты вместе
         if (data.part === null) {
-          circle.setAttribute('fill', 'none');
           circle.style.display = 'none';
+          shadow.style.display = 'none';
+          highlight.style.display = 'none';
         } else {
           circle.style.display = '';
+          shadow.style.display = '';
+          highlight.style.display = '';
           circle.setAttribute('fill', window.Game.colorHex(data.part) || '#000');
         }
 
