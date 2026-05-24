@@ -169,10 +169,11 @@ window.UI = (function () {
       el.viewport.classList.remove('dragging');
       if (!dragMoved) {
         const elAt = document.elementFromPoint(ev.clientX, ev.clientY);
-        const cell = elAt && elAt.closest && elAt.closest('.cell');
+        // closest работает на SVGElement тоже; ищем родительский <g data-r>.
+        const cell = elAt && elAt.closest && elAt.closest('[data-r]');
         if (cell && el.puzzleGrid.contains(cell)) {
-          const r = parseInt(cell.dataset.r, 10);
-          const c = parseInt(cell.dataset.c, 10);
+          const r = parseInt(cell.getAttribute('data-r'), 10);
+          const c = parseInt(cell.getAttribute('data-c'), 10);
           if (window.Game.pickAtCell(r, c)) render();
         }
       }
@@ -267,43 +268,52 @@ window.UI = (function () {
     if (el.winOverlay) el.winOverlay.classList.remove('active');
   }
 
-  // ===== Построение DOM сетки =====
+  // ===== Построение SVG сетки =====
+  // Поле рендерится одним <svg> с viewBox = cols × rows. Каждая клетка —
+  // <g data-r data-c> с двумя детьми: <rect> (подложка) и <circle> (деталь).
+  // SVG векторный — при любом zoom остаётся резким.
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const PART_RADIUS = 0.32;          // относительно клетки (1 = ширина клетки)
+  const PART_RADIUS_SELECTED = 0.36;
+
   function buildGridDOM() {
     const state = window.Game.state;
-    el.puzzleGrid.style.setProperty('--cols', state.cols);
-    el.puzzleGrid.style.setProperty('--rows', state.rows);
-    // Для больших сеток ужимаем gap и inset детали — иначе круги слишком мелкие.
-    const maxSide = Math.max(state.rows, state.cols);
-    el.puzzleGrid.classList.toggle('grid-large', maxSide >= 15);
-    el.puzzleGrid.classList.toggle('grid-huge', maxSide >= 25);
-    if (maxSide >= 25) {
-      el.puzzleGrid.style.setProperty('--grid-gap', '1px');
-      el.puzzleGrid.style.setProperty('--part-inset', '6%');
-      el.puzzleGrid.style.setProperty('--grid-radius', '2px');
-    } else if (maxSide >= 15) {
-      el.puzzleGrid.style.setProperty('--grid-gap', '1px');
-      el.puzzleGrid.style.setProperty('--part-inset', '10%');
-      el.puzzleGrid.style.setProperty('--grid-radius', '3px');
-    } else {
-      el.puzzleGrid.style.setProperty('--grid-gap', '2px');
-      el.puzzleGrid.style.setProperty('--part-inset', '14%');
-      el.puzzleGrid.style.setProperty('--grid-radius', '4px');
-    }
     el.puzzleGrid.innerHTML = '';
+
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 ' + state.cols + ' ' + state.rows);
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    svg.classList.add('puzzle-svg');
+
     const frag = document.createDocumentFragment();
     for (let r = 0; r < state.rows; r++) {
       for (let c = 0; c < state.cols; c++) {
-        const cell = document.createElement('div');
-        cell.className = 'cell';
-        cell.dataset.r = r;
-        cell.dataset.c = c;
-        const part = document.createElement('span');
-        part.className = 'part';
-        cell.appendChild(part);
-        frag.appendChild(cell);
+        const g = document.createElementNS(SVG_NS, 'g');
+        g.setAttribute('class', 'cell');
+        g.setAttribute('data-r', r);
+        g.setAttribute('data-c', c);
+
+        const rect = document.createElementNS(SVG_NS, 'rect');
+        rect.setAttribute('class', 'bg');
+        rect.setAttribute('x', c);
+        rect.setAttribute('y', r);
+        rect.setAttribute('width', 1);
+        rect.setAttribute('height', 1);
+        g.appendChild(rect);
+
+        const circle = document.createElementNS(SVG_NS, 'circle');
+        circle.setAttribute('class', 'part');
+        circle.setAttribute('cx', c + 0.5);
+        circle.setAttribute('cy', r + 0.5);
+        circle.setAttribute('r', PART_RADIUS);
+        g.appendChild(circle);
+
+        frag.appendChild(g);
       }
     }
-    el.puzzleGrid.appendChild(frag);
+    svg.appendChild(frag);
+    el.puzzleGrid.appendChild(svg);
+    el.svg = svg;
   }
 
   function buildInventoryDOM() {
@@ -320,44 +330,44 @@ window.UI = (function () {
     }
   }
 
-  // ===== Обновление состояния DOM =====
+  // ===== Обновление состояния SVG =====
   function renderGrid() {
     const state = window.Game.state;
     const selSet = window.Game.selectedCellSet();
-    const nodes = el.puzzleGrid.children;
+    if (!el.svg) return;
+    const nodes = el.svg.children;
     let idx = 0;
     for (let r = 0; r < state.rows; r++) {
       for (let c = 0; c < state.cols; c++) {
-        const cell = nodes[idx++];
+        const g = nodes[idx++];
+        if (!g) continue;
         const data = state.grid[r][c];
+        const rect = g.firstElementChild;
+        const circle = rect.nextElementSibling;
+
         // bg
         if (data.bg === null) {
-          cell.dataset.bg = '';
-          cell.dataset.bgLight = '';
-          cell.classList.add('empty');
-          cell.style.backgroundColor = '';
+          g.classList.add('empty');
+          rect.removeAttribute('fill');
         } else {
-          const hex = window.Game.colorHex(data.bg);
-          cell.dataset.bg = data.bg;
-          cell.dataset.bgLight = isLightHex(hex) ? 'true' : 'false';
-          cell.classList.remove('empty');
-          cell.style.backgroundColor = hex || '';
+          g.classList.remove('empty');
+          rect.setAttribute('fill', window.Game.colorHex(data.bg) || '#000');
         }
+
         // part
-        const partEl = cell.firstElementChild;
         if (data.part === null) {
-          cell.dataset.part = '';
-          partEl.style.backgroundColor = '';
-          partEl.style.display = 'none';
+          circle.setAttribute('fill', 'none');
+          circle.style.display = 'none';
         } else {
-          cell.dataset.part = data.part;
-          partEl.style.backgroundColor = window.Game.colorHex(data.part) || '';
-          partEl.style.display = '';
+          circle.style.display = '';
+          circle.setAttribute('fill', window.Game.colorHex(data.part) || '#000');
         }
-        // locked: деталь стоит на своём цвете — не интерактивна
-        cell.dataset.locked = window.Game.isLocked(data) ? 'true' : 'false';
-        // selection
-        cell.dataset.selected = selSet.has(r + ',' + c) ? 'true' : 'false';
+
+        // locked / selected — через classes (стили из styles.css)
+        const locked = window.Game.isLocked(data);
+        const selected = selSet.has(r + ',' + c);
+        g.classList.toggle('locked', locked);
+        g.classList.toggle('selected', selected);
       }
     }
   }

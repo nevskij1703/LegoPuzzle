@@ -196,16 +196,17 @@ button { font-family: inherit; }
   text-align: center;
 }
 
-/* Viewport — фиксированная коробка с overflow:hidden. Внутри grid с transform. */
+/* Viewport — прозрачная коробка (без видимой рамки), overflow:hidden чтобы
+   зум не задевал шапку/инвентарь, но визуально границы не «обрезаются». */
 .board-viewport {
   position: relative;
   width: 100%;
   max-width: min(92vw, 480px);
   aspect-ratio: 1;
-  background: var(--bg-1);
-  border-radius: 10px;
+  background: transparent;
+  border-radius: 0;
   overflow: hidden;
-  touch-action: none;           /* отдаём pinch/scroll/pan нам */
+  touch-action: none;
   cursor: grab;
   -webkit-user-select: none;
   user-select: none;
@@ -213,20 +214,48 @@ button { font-family: inherit; }
 .board-viewport.dragging { cursor: grabbing; }
 
 .puzzle-grid {
-  display: grid;
-  grid-template-columns: repeat(var(--cols, 8), 1fr);
-  grid-template-rows: repeat(var(--rows, 8), 1fr);
-  gap: var(--grid-gap);
   position: absolute;
   top: 0; left: 0;
   width: 100%;
   height: 100%;
-  padding: var(--grid-gap);
   /* transform-origin: 0 0 — для простой математики zoom-to-point.
      transform задаётся inline из ui.js (translate + scale). */
   transform-origin: 0 0;
   will-change: transform;
 }
+
+/* Векторная отрисовка поля. SVG viewBox = cols × rows, координаты в
+   единицах клетки. При любом scale остаётся резким (не «мылится»). */
+.puzzle-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* shape-rendering: crispEdges делает rect-границы чёткими (без AA);
+     для пиксель-арта это даёт идеальный «лего»-вид. */
+  shape-rendering: crispEdges;
+}
+.puzzle-svg .bg {
+  pointer-events: all;
+}
+.puzzle-svg .part {
+  /* circle ловит pointer-события сам, но при locked это не нужно — см. ниже */
+  pointer-events: none;
+  transition: r 0.08s ease, stroke-width 0.1s ease;
+  shape-rendering: geometricPrecision;  /* кружки без AA выглядят рвано */
+}
+.puzzle-svg .cell.empty .bg { fill: transparent; pointer-events: none; }
+.puzzle-svg .cell.empty .part { display: none; }
+
+/* Selection — на детали появляется белая обводка и она чуть больше. */
+.puzzle-svg .cell.selected .part {
+  stroke: #ffffff;
+  stroke-width: 0.08;
+  r: 0.36;
+}
+
+/* Locked — немного приглушена + cursor default. */
+.puzzle-svg .cell.locked { cursor: default; }
+.puzzle-svg .cell.locked .part { opacity: 0.9; }
 
 /* ===== Zoom control справа-внизу board-viewport ===== */
 .zoom-control {
@@ -277,78 +306,9 @@ button { font-family: inherit; }
   text-align: center;
 }
 
-.cell {
-  position: relative;
-  background: var(--bg-2);
-  border-radius: var(--grid-radius);
-  cursor: pointer;
-  -webkit-user-select: none;
-  user-select: none;
-}
-.cell.empty {
-  background: transparent;
-  pointer-events: none;
-}
-
-/* Цвета подложек/деталей задаются inline через style.backgroundColor
-   из game.colorHex() (палитра уровня + GAME_CONFIG.COLORS как fallback). */
-
-.cell .part {
-  position: absolute;
-  inset: var(--part-inset);
-  border-radius: 50%;
-  pointer-events: none;
-  box-shadow:
-    inset 0 -2px 4px rgba(0,0,0,0.25),
-    inset 0 2px 4px rgba(255,255,255,0.22),
-    0 1px 2px rgba(0,0,0,0.3);
-  transition: transform 0.08s ease, box-shadow 0.15s ease;
-}
-
-/* Подсветка selection */
-.cell[data-selected="true"] {
-  z-index: 2;
-}
-.cell[data-selected="true"] .part {
-  transform: scale(1.12);
-  box-shadow:
-    inset 0 -2px 4px rgba(0,0,0,0.25),
-    inset 0 2px 4px rgba(255,255,255,0.4),
-    0 0 0 2px var(--accent),
-    0 0 14px var(--accent-glow);
-}
-
-/* Залоченные детали (стоят на своём цвете): не интерактивны, лёгкий маркер */
-.cell[data-locked="true"] {
-  cursor: default;
-}
-.cell[data-locked="true"] .part {
-  box-shadow:
-    inset 0 -1px 3px rgba(0,0,0,0.35),
-    inset 0 1px 2px rgba(255,255,255,0.15);
-  opacity: 0.92;
-}
-.cell[data-locked="true"]::after {
-  content: "";
-  position: absolute;
-  left: 50%; top: 50%;
-  width: 28%; height: 28%;
-  transform: translate(-50%, -50%) rotate(45deg);
-  border-right: 2px solid rgba(255,255,255,0.55);
-  border-bottom: 2px solid rgba(255,255,255,0.55);
-  pointer-events: none;
-}
-/* На светлых подложках тёмная галочка — для контраста (data-bg-light ставится в ui.js). */
-.cell[data-locked="true"][data-bg-light="true"]::after {
-  border-right-color: rgba(0,0,0,0.45);
-  border-bottom-color: rgba(0,0,0,0.45);
-}
-
-/* На больших сетках галочка-маркер становится нечитаемой — скрываем. */
-.puzzle-grid.grid-huge .cell[data-locked="true"]::after { display: none; }
-.puzzle-grid.grid-large .cell[data-locked="true"]::after {
-  width: 22%; height: 22%;
-}
+/* Старые DOM-grid правила удалены — поле теперь рендерится через SVG
+   (см. .puzzle-svg выше). Цвета rect/circle задаются inline из ui.js
+   через game.colorHex(); selection/locked — через CSS-классы на <g>. */
 
 /* ===== Инвентарь ===== */
 .inventory-wrap {
