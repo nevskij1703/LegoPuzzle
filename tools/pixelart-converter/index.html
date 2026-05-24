@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pixel Art Converter — Lego Puzzle</title>
+<style>
+  :root {
+    --bg-0: #1a1d24;
+    --bg-1: #252a33;
+    --bg-2: #313641;
+    --bg-3: #3d434f;
+    --text: #e7eaf0;
+    --text-dim: #9097a3;
+    --accent: #4a90e2;
+    --accent-2: #f5d142;
+    --stroke: rgba(255, 255, 255, 0.08);
+    --danger: #d63b3b;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg-0); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  body { padding: 20px; }
+  h1 { margin: 0 0 24px; font-size: 24px; }
+  h2 { font-size: 16px; margin: 0 0 12px; color: var(--accent-2); }
+  h3 { font-size: 14px; margin: 12px 0 8px; }
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+  .panel {
+    background: var(--bg-1);
+    border: 1px solid var(--stroke);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .row { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+  .row label { font-size: 14px; color: var(--text-dim); white-space: nowrap; }
+  input[type="number"], input[type="text"] {
+    background: var(--bg-2); color: var(--text);
+    border: 1px solid var(--stroke);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-family: inherit;
+    width: 80px;
+    font-size: 14px;
+  }
+  input[type="text"].hex { width: 100px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  input[type="range"] { width: 100%; }
+  input[type="file"] {
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+  button {
+    background: var(--accent); color: white;
+    border: none; border-radius: 6px;
+    padding: 8px 16px; font-size: 14px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: opacity 0.15s ease;
+  }
+  button:hover { opacity: 0.9; }
+  button.secondary { background: var(--bg-3); }
+  button.danger { background: var(--danger); }
+  .btn-row { display: flex; gap: 8px; }
+  .dropzone {
+    border: 2px dashed var(--stroke);
+    border-radius: 8px;
+    padding: 24px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 14px;
+    margin-top: 10px;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .dropzone.over { background: var(--bg-2); border-color: var(--accent); color: var(--text); }
+  canvas#original {
+    max-width: 100%;
+    max-height: 200px;
+    image-rendering: auto;
+    display: block;
+    margin: 12px auto 0;
+    background:
+      linear-gradient(45deg, #333 25%, transparent 25%) 0 0/16px 16px,
+      linear-gradient(-45deg, #333 25%, transparent 25%) 0 8px/16px 16px,
+      linear-gradient(45deg, transparent 75%, #333 75%) 8px -8px/16px 16px,
+      linear-gradient(-45deg, transparent 75%, #333 75%) 8px 0/16px 16px,
+      #444;
+    border-radius: 4px;
+  }
+  canvas#pixelated {
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    display: block;
+    margin: 0 auto;
+    background: var(--bg-2);
+    border-radius: 4px;
+  }
+  .preview-wrap {
+    background: var(--bg-2);
+    padding: 12px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 220px;
+  }
+  .palette {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .palette-item {
+    background: var(--bg-2);
+    border: 2px solid var(--stroke);
+    border-radius: 8px;
+    padding: 8px;
+    cursor: pointer;
+    text-align: center;
+    transition: border-color 0.15s ease;
+  }
+  .palette-item:hover { border-color: var(--text-dim); }
+  .palette-item.active { border-color: var(--accent); }
+  .palette-swatch {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.1);
+    margin-bottom: 4px;
+  }
+  .palette-code {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-weight: 700;
+    font-size: 14px;
+  }
+  .palette-hex {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+  .palette-count {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+  .editor {
+    background: var(--bg-2);
+    padding: 16px;
+    border-radius: 8px;
+    margin-top: 16px;
+  }
+  .slider-row {
+    display: grid;
+    grid-template-columns: 50px 1fr 50px;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .slider-row label { font-size: 13px; color: var(--text-dim); }
+  .slider-row .value {
+    text-align: right;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 13px;
+  }
+  .swatch-large {
+    width: 100%;
+    height: 60px;
+    border-radius: 6px;
+    border: 1px solid var(--stroke);
+    margin-bottom: 12px;
+  }
+  textarea {
+    width: 100%;
+    min-height: 200px;
+    background: var(--bg-2); color: var(--text);
+    border: 1px solid var(--stroke);
+    border-radius: 6px;
+    padding: 12px;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 12px;
+    resize: vertical;
+  }
+  .hint { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+  .empty-state {
+    color: var(--text-dim);
+    text-align: center;
+    padding: 40px 20px;
+    font-size: 14px;
+  }
+  .grid-info {
+    font-size: 12px;
+    color: var(--text-dim);
+    text-align: center;
+    margin-top: 8px;
+  }
+  /* Hue slider gradient */
+  input[type="range"].hue-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 12px;
+    background: linear-gradient(to right,
+      #ff0000 0%, #ffff00 17%, #00ff00 33%,
+      #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%);
+    border-radius: 6px;
+    outline: none;
+  }
+  input[type="range"].hue-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    background: #fff; border-radius: 50%;
+    border: 2px solid #000;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<h1>Pixel Art Converter — Lego Puzzle</h1>
+
+<div class="layout">
+
+  <!-- ===== ЛЕВАЯ КОЛОНКА: ВХОД ===== -->
+  <div class="panel">
+    <h2>1. Загрузка изображения</h2>
+    <input type="file" id="file" accept="image/*">
+    <div id="dropzone" class="dropzone">Или перетащи PNG/JPG сюда</div>
+    <canvas id="original" width="200" height="200" style="display:none"></canvas>
+    <div id="img-info" class="hint"></div>
+
+    <h2 style="margin-top: 24px">2. Параметры</h2>
+    <div class="row">
+      <label>Ширина:</label>
+      <input type="number" id="cols" min="4" max="100" value="10">
+      <label>Высота:</label>
+      <input type="number" id="rows" min="4" max="100" value="10">
+    </div>
+    <div class="row">
+      <label>Цветов:</label>
+      <input type="number" id="kColors" min="2" max="12" value="3">
+      <label style="margin-left: 16px">
+        <input type="checkbox" id="trim-bg" checked>
+        Прозрачность → null (вне арта)
+      </label>
+    </div>
+    <div class="row">
+      <label>Alpha-порог:</label>
+      <input type="number" id="alpha-thr" min="0" max="255" value="128">
+      <span class="hint">пиксели с alpha &lt; этого = null</span>
+    </div>
+    <div class="row">
+      <label>ID уровня:</label>
+      <input type="number" id="level-id" min="1" value="2">
+      <label>Сложность:</label>
+      <select id="difficulty" style="background: var(--bg-2); color: var(--text); border: 1px solid var(--stroke); border-radius: 6px; padding: 6px 10px; font-family: inherit; font-size: 14px;">
+        <option value="easy">easy</option>
+        <option value="medium">medium</option>
+        <option value="hard">hard</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>Название:</label>
+      <input type="text" id="level-name" value="Новый уровень" style="width: 200px">
+    </div>
+    <div class="btn-row" style="margin-top: 12px">
+      <button id="generate">Конвертировать</button>
+      <button id="reload" class="secondary">Перегенерировать с теми же параметрами</button>
+    </div>
+  </div>
+
+  <!-- ===== ПРАВАЯ КОЛОНКА: РЕЗУЛЬТАТ ===== -->
+  <div class="panel">
+    <h2>3. Превью</h2>
+    <div class="preview-wrap">
+      <canvas id="pixelated" width="320" height="320">
+      </canvas>
+    </div>
+    <div id="grid-info" class="grid-info"></div>
+
+    <h2 style="margin-top: 20px">4. Палитра <span class="hint" id="palette-hint"></span></h2>
+    <div id="palette" class="palette">
+      <div class="empty-state">Загрузи изображение и нажми «Конвертировать»</div>
+    </div>
+
+    <div id="editor" class="editor" style="display: none">
+      <h3>Редактируется: <span id="ce-code">A</span></h3>
+      <div class="swatch-large" id="ce-swatch"></div>
+      <div class="row">
+        <label>Hex:</label>
+        <input type="text" id="ce-hex" class="hex" value="#000000">
+        <label>Picker:</label>
+        <input type="color" id="ce-picker" value="#000000">
+        <label>Код:</label>
+        <input type="text" id="ce-code-input" class="hex" maxlength="3" value="A" style="width:60px">
+      </div>
+      <div class="slider-row">
+        <label>Hue</label>
+        <input type="range" id="ce-h" class="hue-slider" min="0" max="360" step="1" value="0">
+        <span class="value" id="ce-h-val">0°</span>
+      </div>
+      <div class="slider-row">
+        <label>Sat</label>
+        <input type="range" id="ce-s" min="0" max="100" step="1" value="0">
+        <span class="value" id="ce-s-val">0%</span>
+      </div>
+      <div class="slider-row">
+        <label>Light</label>
+        <input type="range" id="ce-l" min="0" max="100" step="1" value="0">
+        <span class="value" id="ce-l-val">0%</span>
+      </div>
+      <button id="ce-close" class="secondary">Готово</button>
+    </div>
+
+    <h2 style="margin-top: 20px">5. JSON для levels.js</h2>
+    <textarea id="json-output" readonly placeholder="// результат появится после конвертации"></textarea>
+    <div class="btn-row" style="margin-top: 8px">
+      <button id="copy-json">📋 Скопировать JSON</button>
+      <button id="copy-colors" class="secondary">📋 Скопировать палитру для config.js</button>
+    </div>
+    <div id="copy-status" class="hint" style="margin-top: 6px"></div>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+// ===================================================================
+// Цветовые утилиты
+// ===================================================================
+function rgbToHex(r, g, b) {
+  const h = (n) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
+  return '#' + h(r) + h(g) + h(b);
+}
+function hexToRgb(hex) {
+  if (!hex) return { r: 0, g: 0, b: 0 };
+  hex = hex.replace('#', '').trim();
+  if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+  if (hex.length !== 6 || /[^0-9a-f]/i.test(hex)) return null;
+  return {
+    r: parseInt(hex.substr(0, 2), 16),
+    g: parseInt(hex.substr(2, 2), 16),
+    b: parseInt(hex.substr(4, 2), 16),
+  };
+}
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0;
+  const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+  }
+  return { h: Math.round(h), s: Math.round(s * 100), l: Math.round(l * 100) };
+}
+function hslToRgb(h, s, l) {
+  h = ((h % 360) + 360) % 360;
+  s /= 100; l /= 100;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r1 = 0, g1 = 0, b1 = 0;
+  if (h < 60)       { r1 = c; g1 = x; b1 = 0; }
+  else if (h < 120) { r1 = x; g1 = c; b1 = 0; }
+  else if (h < 180) { r1 = 0; g1 = c; b1 = x; }
+  else if (h < 240) { r1 = 0; g1 = x; b1 = c; }
+  else if (h < 300) { r1 = x; g1 = 0; b1 = c; }
+  else              { r1 = c; g1 = 0; b1 = x; }
+  return {
+    r: Math.round((r1 + m) * 255),
+    g: Math.round((g1 + m) * 255),
+    b: Math.round((b1 + m) * 255),
+  };
+}
+
+// ===================================================================
+// K-means quantization
+// ===================================================================
+function kmeans(pixels, k, maxIter) {
+  maxIter = maxIter || 30;
+  if (pixels.length <= k) {
+    return {
+      centroids: pixels.map(p => ({ r: p.r, g: p.g, b: p.b })),
+      assignments: pixels.map((_, i) => i)
+    };
+  }
+  // k-means++ initialization
+  const centroids = [];
+  centroids.push({ ...pixels[Math.floor(Math.random() * pixels.length)] });
+  while (centroids.length < k) {
+    const distances = pixels.map(p => {
+      let minD = Infinity;
+      for (let i = 0; i < centroids.length; i++) {
+        const c = centroids[i];
+        const dr = p.r - c.r, dg = p.g - c.g, db = p.b - c.b;
+        const d = dr * dr + dg * dg + db * db;
+        if (d < minD) minD = d;
+      }
+      return minD;
+    });
+    let total = 0;
+    for (let i = 0; i < distances.length; i++) total += distances[i];
+    if (total === 0) {
+      centroids.push({ ...pixels[Math.floor(Math.random() * pixels.length)] });
+      continue;
+    }
+    let r = Math.random() * total;
+    let idx = 0;
+    for (let i = 0; i < distances.length; i++) {
+      r -= distances[i];
+      if (r <= 0) { idx = i; break; }
+    }
+    centroids.push({ ...pixels[idx] });
+  }
+  // iterate
+  const assignments = new Array(pixels.length).fill(-1);
+  for (let iter = 0; iter < maxIter; iter++) {
+    let changed = false;
+    for (let i = 0; i < pixels.length; i++) {
+      let minD = Infinity, best = 0;
+      for (let kk = 0; kk < k; kk++) {
+        const c = centroids[kk];
+        const dr = pixels[i].r - c.r, dg = pixels[i].g - c.g, db = pixels[i].b - c.b;
+        const d = dr * dr + dg * dg + db * db;
+        if (d < minD) { minD = d; best = kk; }
+      }
+      if (assignments[i] !== best) { changed = true; assignments[i] = best; }
+    }
+    if (!changed) break;
+    const sums = Array.from({ length: k }, () => ({ r: 0, g: 0, b: 0, count: 0 }));
+    for (let i = 0; i < pixels.length; i++) {
+      const s = sums[assignments[i]];
+      s.r += pixels[i].r; s.g += pixels[i].g; s.b += pixels[i].b; s.count++;
+    }
+    for (let kk = 0; kk < k; kk++) {
+      if (sums[kk].count > 0) {
+        centroids[kk].r = sums[kk].r / sums[kk].count;
+        centroids[kk].g = sums[kk].g / sums[kk].count;
+        centroids[kk].b = sums[kk].b / sums[kk].count;
+      } else {
+        // пустой кластер — переинициализируем
+        centroids[kk] = { ...pixels[Math.floor(Math.random() * pixels.length)] };
+      }
+    }
+  }
+  return { centroids, assignments };
+}
+
+// ===================================================================
+// State приложения
+// ===================================================================
+const state = {
+  image: null,       // HTMLImageElement
+  imageInfo: null,   // { width, height }
+  cols: 10,
+  rows: 10,
+  k: 3,
+  trimBg: true,
+  alphaThr: 128,
+  levelId: 2,
+  difficulty: 'easy',
+  levelName: 'Новый уровень',
+  // Результат конвертации:
+  grid: null,        // [[code|null, ...], ...]
+  palette: null,     // [{code, r, g, b, hex, count}]
+  activeColorIdx: -1,
+};
+
+// ===================================================================
+// DOM
+// ===================================================================
+const $ = (id) => document.getElementById(id);
+const elFile = $('file');
+const elDropzone = $('dropzone');
+const elOriginal = $('original');
+const elImgInfo = $('img-info');
+const elCols = $('cols');
+const elRows = $('rows');
+const elK = $('kColors');
+const elTrim = $('trim-bg');
+const elAlphaThr = $('alpha-thr');
+const elLevelId = $('level-id');
+const elDifficulty = $('difficulty');
+const elLevelName = $('level-name');
+const elGenerate = $('generate');
+const elReload = $('reload');
+const elPixelated = $('pixelated');
+const elGridInfo = $('grid-info');
+const elPalette = $('palette');
+const elPaletteHint = $('palette-hint');
+const elEditor = $('editor');
+const elCeCode = $('ce-code');
+const elCeCodeInput = $('ce-code-input');
+const elCeSwatch = $('ce-swatch');
+const elCeHex = $('ce-hex');
+const elCePicker = $('ce-picker');
+const elCeH = $('ce-h');
+const elCeS = $('ce-s');
+const elCeL = $('ce-l');
+const elCeHVal = $('ce-h-val');
+const elCeSVal = $('ce-s-val');
+const elCeLVal = $('ce-l-val');
+const elCeClose = $('ce-close');
+const elJsonOut = $('json-output');
+const elCopyJson = $('copy-json');
+const elCopyColors = $('copy-colors');
+const elCopyStatus = $('copy-status');
+
+// ===================================================================
+// Загрузка картинки
+// ===================================================================
+function loadImageFromFile(file) {
+  if (!file || !file.type.startsWith('image/')) {
+    alert('Нужно изображение (PNG/JPG/GIF/WebP).');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const img = new Image();
+    img.onload = () => {
+      state.image = img;
+      state.imageInfo = { width: img.width, height: img.height };
+      elImgInfo.textContent = 'Оригинал: ' + img.width + ' × ' + img.height + ' px';
+      // Рисуем превью оригинала
+      const maxSide = 200;
+      const scale = Math.min(maxSide / img.width, maxSide / img.height, 1);
+      elOriginal.width = Math.round(img.width * scale);
+      elOriginal.height = Math.round(img.height * scale);
+      elOriginal.style.display = 'block';
+      const ctx = elOriginal.getContext('2d');
+      ctx.clearRect(0, 0, elOriginal.width, elOriginal.height);
+      ctx.drawImage(img, 0, 0, elOriginal.width, elOriginal.height);
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+elFile.addEventListener('change', (ev) => {
+  if (ev.target.files && ev.target.files[0]) {
+    loadImageFromFile(ev.target.files[0]);
+  }
+});
+['dragenter', 'dragover'].forEach(t => {
+  elDropzone.addEventListener(t, (e) => {
+    e.preventDefault(); e.stopPropagation();
+    elDropzone.classList.add('over');
+  });
+});
+['dragleave', 'drop'].forEach(t => {
+  elDropzone.addEventListener(t, (e) => {
+    e.preventDefault(); e.stopPropagation();
+    elDropzone.classList.remove('over');
+  });
+});
+elDropzone.addEventListener('drop', (e) => {
+  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+    loadImageFromFile(e.dataTransfer.files[0]);
+  }
+});
+
+// ===================================================================
+// Конвертация
+// ===================================================================
+function readParams() {
+  state.cols = Math.max(2, Math.min(100, parseInt(elCols.value, 10) || 10));
+  state.rows = Math.max(2, Math.min(100, parseInt(elRows.value, 10) || 10));
+  state.k = Math.max(2, Math.min(12, parseInt(elK.value, 10) || 3));
+  state.trimBg = elTrim.checked;
+  state.alphaThr = Math.max(0, Math.min(255, parseInt(elAlphaThr.value, 10) || 128));
+  state.levelId = Math.max(1, parseInt(elLevelId.value, 10) || 2);
+  state.difficulty = elDifficulty.value;
+  state.levelName = (elLevelName.value || 'Новый уровень').trim();
+}
+
+function generateCode(i) {
+  // A..Z -> AA..AZ -> ...
+  if (i < 26) return String.fromCharCode(65 + i);
+  return String.fromCharCode(65 + Math.floor(i / 26) - 1) + String.fromCharCode(65 + (i % 26));
+}
+
+function convert() {
+  if (!state.image) {
+    alert('Сначала загрузи изображение.');
+    return;
+  }
+  readParams();
+
+  // 1. Уменьшаем картинку до cols x rows.
+  const tmp = document.createElement('canvas');
+  tmp.width = state.cols;
+  tmp.height = state.rows;
+  const tctx = tmp.getContext('2d');
+  tctx.imageSmoothingEnabled = true;
+  tctx.imageSmoothingQuality = 'high';
+  tctx.clearRect(0, 0, state.cols, state.rows);
+  tctx.drawImage(state.image, 0, 0, state.cols, state.rows);
+  const imageData = tctx.getImageData(0, 0, state.cols, state.rows);
+  const data = imageData.data;
+
+  // 2. Собираем не-прозрачные пиксели.
+  const pixels = [];
+  const pixelIndex = []; // (i*cols+j) -> index in pixels или -1
+  for (let r = 0; r < state.rows; r++) {
+    for (let c = 0; c < state.cols; c++) {
+      const off = (r * state.cols + c) * 4;
+      const alpha = data[off + 3];
+      if (state.trimBg && alpha < state.alphaThr) {
+        pixelIndex.push(-1);
+      } else {
+        pixels.push({ r: data[off], g: data[off + 1], b: data[off + 2] });
+        pixelIndex.push(pixels.length - 1);
+      }
+    }
+  }
+
+  if (pixels.length === 0) {
+    alert('Все пиксели прозрачные — нечего конвертировать. Снизь Alpha-порог или сними галочку «Прозрачность → null».');
+    return;
+  }
+
+  // 3. K-means.
+  const effectiveK = Math.min(state.k, pixels.length);
+  const { centroids, assignments } = kmeans(pixels, effectiveK);
+
+  // 4. Подсчёт частоты каждого центроида.
+  const counts = new Array(centroids.length).fill(0);
+  for (let i = 0; i < assignments.length; i++) counts[assignments[i]]++;
+
+  // 5. Сортируем центроиды по убыванию частоты — самый частый получит код A.
+  const order = centroids.map((_, i) => i).sort((a, b) => counts[b] - counts[a]);
+  const remap = new Array(centroids.length);
+  for (let i = 0; i < order.length; i++) remap[order[i]] = i;
+
+  // 6. Строим палитру.
+  const palette = order.map((origIdx, newIdx) => {
+    const c = centroids[origIdx];
+    const r = Math.round(c.r), g = Math.round(c.g), b = Math.round(c.b);
+    return {
+      code: generateCode(newIdx),
+      r, g, b,
+      hex: rgbToHex(r, g, b),
+      count: counts[origIdx],
+    };
+  });
+
+  // 7. Строим grid.
+  const grid = [];
+  let pIdx = 0;
+  for (let r = 0; r < state.rows; r++) {
+    const row = [];
+    for (let c = 0; c < state.cols; c++) {
+      const idx = pixelIndex[r * state.cols + c];
+      if (idx === -1) {
+        row.push(null);
+      } else {
+        const cluster = assignments[idx];
+        row.push(palette[remap[cluster]].code);
+      }
+    }
+    grid.push(row);
+  }
+
+  state.grid = grid;
+  state.palette = palette;
+  state.activeColorIdx = -1;
+
+  renderPreview();
+  renderPalette();
+  closeEditor();
+  renderJson();
+}
+
+// ===================================================================
+// Превью
+// ===================================================================
+function renderPreview() {
+  if (!state.grid || !state.palette) return;
+  // Размер canvas: вычисляем подходящий cell size для отображения ~340px max.
+  const maxSide = 340;
+  const cellSize = Math.max(4, Math.floor(maxSide / Math.max(state.cols, state.rows)));
+  const w = state.cols * cellSize;
+  const h = state.rows * cellSize;
+  elPixelated.width = w;
+  elPixelated.height = h;
+  const ctx = elPixelated.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  // Фон под прозрачные клетки — клетчатый
+  ctx.fillStyle = '#252a33';
+  ctx.fillRect(0, 0, w, h);
+  // Шахматка для null-клеток
+  const tile = Math.max(4, Math.floor(cellSize / 2));
+  for (let y = 0; y < h; y += tile) {
+    for (let x = 0; x < w; x += tile) {
+      if (((x / tile + y / tile) | 0) % 2 === 0) {
+        ctx.fillStyle = '#2d3340';
+        ctx.fillRect(x, y, tile, tile);
+      }
+    }
+  }
+  const paletteMap = {};
+  state.palette.forEach(p => { paletteMap[p.code] = p.hex; });
+
+  for (let r = 0; r < state.rows; r++) {
+    for (let c = 0; c < state.cols; c++) {
+      const code = state.grid[r][c];
+      if (code === null) continue;
+      ctx.fillStyle = paletteMap[code] || '#ff00ff';
+      ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+    }
+  }
+  elGridInfo.textContent = 'Сетка: ' + state.cols + ' × ' + state.rows +
+    ' (' + state.palette.length + ' цветов, ' +
+    state.grid.flat().filter(x => x !== null).length + ' клеток с подложкой)';
+}
+
+// ===================================================================
+// Палитра
+// ===================================================================
+function renderPalette() {
+  elPalette.innerHTML = '';
+  if (!state.palette) return;
+  elPaletteHint.textContent = ' (клик — редактировать)';
+  state.palette.forEach((p, i) => {
+    const item = document.createElement('div');
+    item.className = 'palette-item' + (i === state.activeColorIdx ? ' active' : '');
+    item.innerHTML = `
+      <div class="palette-swatch" style="background: ${p.hex}"></div>
+      <div class="palette-code">${p.code}</div>
+      <div class="palette-hex">${p.hex}</div>
+      <div class="palette-count">${p.count} px</div>
+    `;
+    item.addEventListener('click', () => openEditor(i));
+    elPalette.appendChild(item);
+  });
+}
+
+// ===================================================================
+// Редактор цвета
+// ===================================================================
+function openEditor(i) {
+  if (!state.palette || !state.palette[i]) return;
+  state.activeColorIdx = i;
+  const p = state.palette[i];
+  elEditor.style.display = 'block';
+  elCeCode.textContent = p.code;
+  elCeCodeInput.value = p.code;
+  syncEditorFromColor(p);
+  renderPalette(); // обновить active state
+}
+
+function closeEditor() {
+  state.activeColorIdx = -1;
+  elEditor.style.display = 'none';
+  renderPalette();
+}
+
+function syncEditorFromColor(p) {
+  elCeSwatch.style.background = p.hex;
+  elCeHex.value = p.hex;
+  elCePicker.value = p.hex;
+  const hsl = rgbToHsl(p.r, p.g, p.b);
+  elCeH.value = hsl.h;
+  elCeS.value = hsl.s;
+  elCeL.value = hsl.l;
+  elCeHVal.textContent = hsl.h + '°';
+  elCeSVal.textContent = hsl.s + '%';
+  elCeLVal.textContent = hsl.l + '%';
+}
+
+function updateActiveColor(rgb) {
+  if (state.activeColorIdx < 0 || !state.palette) return;
+  const p = state.palette[state.activeColorIdx];
+  p.r = rgb.r; p.g = rgb.g; p.b = rgb.b;
+  p.hex = rgbToHex(p.r, p.g, p.b);
+  elCeSwatch.style.background = p.hex;
+  elCeHex.value = p.hex;
+  elCePicker.value = p.hex;
+  renderPreview();
+  renderPalette();
+  renderJson();
+}
+
+elCeHex.addEventListener('input', () => {
+  const rgb = hexToRgb(elCeHex.value);
+  if (!rgb) return;
+  updateActiveColor(rgb);
+  const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+  elCeH.value = hsl.h; elCeS.value = hsl.s; elCeL.value = hsl.l;
+  elCeHVal.textContent = hsl.h + '°'; elCeSVal.textContent = hsl.s + '%'; elCeLVal.textContent = hsl.l + '%';
+});
+elCePicker.addEventListener('input', () => {
+  const rgb = hexToRgb(elCePicker.value);
+  if (!rgb) return;
+  updateActiveColor(rgb);
+  const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+  elCeH.value = hsl.h; elCeS.value = hsl.s; elCeL.value = hsl.l;
+  elCeHVal.textContent = hsl.h + '°'; elCeSVal.textContent = hsl.s + '%'; elCeLVal.textContent = hsl.l + '%';
+});
+function onHslChange() {
+  const h = parseInt(elCeH.value, 10);
+  const s = parseInt(elCeS.value, 10);
+  const l = parseInt(elCeL.value, 10);
+  elCeHVal.textContent = h + '°';
+  elCeSVal.textContent = s + '%';
+  elCeLVal.textContent = l + '%';
+  const rgb = hslToRgb(h, s, l);
+  updateActiveColor(rgb);
+}
+elCeH.addEventListener('input', onHslChange);
+elCeS.addEventListener('input', onHslChange);
+elCeL.addEventListener('input', onHslChange);
+
+elCeCodeInput.addEventListener('change', () => {
+  const newCode = (elCeCodeInput.value || '').trim().toUpperCase().slice(0, 2);
+  if (!newCode || !/^[A-Z0-9]+$/.test(newCode)) {
+    elCeCodeInput.value = state.palette[state.activeColorIdx].code;
+    return;
+  }
+  // проверим уникальность
+  const dup = state.palette.some((p, idx) => idx !== state.activeColorIdx && p.code === newCode);
+  if (dup) {
+    alert('Этот код уже используется. Выбери другой.');
+    elCeCodeInput.value = state.palette[state.activeColorIdx].code;
+    return;
+  }
+  const old = state.palette[state.activeColorIdx].code;
+  state.palette[state.activeColorIdx].code = newCode;
+  // обновим grid
+  for (let r = 0; r < state.rows; r++) {
+    for (let c = 0; c < state.cols; c++) {
+      if (state.grid[r][c] === old) state.grid[r][c] = newCode;
+    }
+  }
+  elCeCode.textContent = newCode;
+  renderPreview();
+  renderPalette();
+  renderJson();
+});
+
+elCeClose.addEventListener('click', closeEditor);
+
+// ===================================================================
+// JSON output
+// ===================================================================
+function renderJson() {
+  if (!state.grid || !state.palette) {
+    elJsonOut.value = '';
+    return;
+  }
+  readParams();
+  const bgRows = state.grid.map(row => {
+    const cells = row.map(c => c === null ? 'null' : JSON.stringify(c));
+    return '    [' + cells.join(', ') + ']';
+  });
+  const levelObj =
+    '{\n' +
+    '  id: ' + state.levelId + ',\n' +
+    '  name: ' + JSON.stringify(state.levelName) + ',\n' +
+    '  difficulty: ' + JSON.stringify(state.difficulty) + ',\n' +
+    '  rows: ' + state.rows + ',\n' +
+    '  cols: ' + state.cols + ',\n' +
+    '  bg: [\n' +
+    bgRows.join(',\n') + '\n' +
+    '  ],\n' +
+    '}';
+  elJsonOut.value = levelObj;
+}
+
+function colorsForConfig() {
+  if (!state.palette) return '';
+  return state.palette.map(p => '  ' + p.code + ': ' + JSON.stringify(p.hex) + ',').join('\n');
+}
+
+function copyToClipboard(text, label) {
+  navigator.clipboard.writeText(text).then(() => {
+    elCopyStatus.textContent = '✓ Скопировано: ' + label;
+    elCopyStatus.style.color = '#5cb85c';
+    setTimeout(() => { elCopyStatus.textContent = ''; }, 2000);
+  }).catch(err => {
+    elCopyStatus.textContent = 'Не удалось скопировать (' + err + '). Выдели текст и Ctrl+C.';
+    elCopyStatus.style.color = '#d63b3b';
+  });
+}
+
+elCopyJson.addEventListener('click', () => {
+  if (!elJsonOut.value) return;
+  copyToClipboard(elJsonOut.value, 'JSON уровня');
+});
+elCopyColors.addEventListener('click', () => {
+  const text = colorsForConfig();
+  if (!text) return;
+  copyToClipboard(text, 'палитра для config.js');
+});
+
+// ===================================================================
+// Кнопки
+// ===================================================================
+elGenerate.addEventListener('click', convert);
+elReload.addEventListener('click', convert);
+
+// Экспорт для отладки (Claude Preview eval) и тестирования
+window.__app = {
+  state,
+  convert,
+  loadImageFromFile,
+  rgbToHsl,
+  hslToRgb,
+  rgbToHex,
+  hexToRgb,
+  kmeans,
+};
+
+// JSON-output обновляется при изменении любого мета-поля (после первой конверсии)
+['change', 'input'].forEach(ev => {
+  [elLevelId, elDifficulty, elLevelName].forEach(input => {
+    input.addEventListener(ev, () => {
+      if (state.grid) renderJson();
+    });
+  });
+});
+</script>
+</body>
+</html>
